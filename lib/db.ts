@@ -161,6 +161,39 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Automation scripts table (quản lý các script automation)
+  CREATE TABLE IF NOT EXISTS automation_scripts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    path TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+  );
+
+  -- Automation tasks table (quản lý các task tự động)
+  CREATE TABLE IF NOT EXISTS automation_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL DEFAULT 'http_request',
+    config TEXT NOT NULL,
+    schedule TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    webhook_id INTEGER,
+    last_run_at TEXT,
+    next_run_at TEXT,
+    run_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (webhook_id) REFERENCES passwords(id) ON DELETE SET NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
@@ -172,11 +205,34 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
   CREATE INDEX IF NOT EXISTS idx_apps_user ON apps(user_id);
   CREATE INDEX IF NOT EXISTS idx_passwords_user ON passwords(user_id);
+  CREATE INDEX IF NOT EXISTS idx_automation_scripts_user ON automation_scripts(user_id);
+  CREATE INDEX IF NOT EXISTS idx_automation_tasks_user ON automation_tasks(user_id);
+  CREATE INDEX IF NOT EXISTS idx_automation_tasks_enabled ON automation_tasks(enabled);
+  CREATE INDEX IF NOT EXISTS idx_automation_tasks_next_run ON automation_tasks(next_run_at);
   CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_board ON kanban_cards(board_id);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_status ON kanban_cards(status);
   CREATE INDEX IF NOT EXISTS idx_categories_position ON categories(position);
 `);
+
+// Migration: Add webhook_id column to automation_tasks if it doesn't exist
+// This must run BEFORE any queries that select from automation_tasks
+try {
+  const automationTasksInfo = db
+    .prepare('PRAGMA table_info(automation_tasks)')
+    .all() as Array<{ name: string }>;
+  const hasWebhookId = automationTasksInfo.some((col) => col.name === 'webhook_id');
+
+  if (!hasWebhookId) {
+    db.exec('ALTER TABLE automation_tasks ADD COLUMN webhook_id INTEGER');
+    // Create index after adding column
+    db.exec('CREATE INDEX IF NOT EXISTS idx_automation_tasks_webhook ON automation_tasks(webhook_id)');
+    console.log('Added webhook_id column to automation_tasks');
+  }
+} catch (error) {
+  // Table might not exist yet, that's okay
+  console.log('Could not check/add webhook_id column:', error);
+}
 
 // Migration: Add user_id columns to existing tables
 try {
@@ -187,6 +243,8 @@ try {
     { name: 'tasks', hasColumn: false },
     { name: 'notes', hasColumn: false },
     { name: 'passwords', hasColumn: false },
+    { name: 'automation_scripts', hasColumn: false },
+    { name: 'automation_tasks', hasColumn: false },
   ];
 
   for (const table of tables) {

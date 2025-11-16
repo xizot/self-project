@@ -36,7 +36,7 @@ import { Plus, Eye, EyeOff } from 'lucide-react';
 const passwordFormSchema = z.object({
   app_name: z.string().min(1, 'Tên ứng dụng là bắt buộc'),
   type: z.enum(['password', 'webhook', 'api_key', 'token', 'other']).optional(),
-  username: z.string().optional(),
+  username: z.string().nullable().optional(),
   password: z.string().min(1, 'Mật khẩu là bắt buộc'),
 });
 
@@ -147,12 +147,10 @@ export default function PasswordForm({
         : '/api/passwords';
       const method = editingPassword ? 'PATCH' : 'POST';
 
-      // Clear username if type is webhook or api_key
+      // For webhook and api_key, username can be used as a name/identifier
       const submitData = {
         ...values,
-        username: values.type === 'webhook' || values.type === 'api_key'
-          ? null
-          : values.username,
+        username: values.username || null,
       };
 
       const res = await fetch(url, {
@@ -311,26 +309,43 @@ export default function PasswordForm({
                   </FormItem>
                 )}
               />
-              {(() => {
-                const currentType = form.watch('type') || 'password';
-                const showUsername = currentType !== 'webhook' && currentType !== 'api_key';
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => {
+                  const currentType = form.watch('type') || 'password';
+                  const isWebhook = currentType === 'webhook';
+                  const isApiKey = currentType === 'api_key';
 
-                return showUsername ? (
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="mb-1">Username</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Tên đăng nhập" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : null;
-              })()}
+                  return (
+                    <FormItem>
+                      <FormLabel className="mb-1">
+                        {isWebhook ? 'Tên webhook' : isApiKey ? 'Tên API Key' : 'Username'}
+                        {!isWebhook && !isApiKey && <span className="text-red-500">*</span>}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ''}
+                          placeholder={
+                            isWebhook
+                              ? 'Ví dụ: Webhook thông báo giá vàng'
+                              : isApiKey
+                              ? 'Ví dụ: API Key production'
+                              : 'Tên đăng nhập'
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      {isWebhook && (
+                        <p className="text-xs text-muted-foreground">
+                          Tên để phân biệt các webhook trong cùng ứng dụng
+                        </p>
+                      )}
+                    </FormItem>
+                  );
+                }}
+              />
               <FormField
                 control={form.control}
                 name="password"

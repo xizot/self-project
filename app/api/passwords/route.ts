@@ -8,7 +8,7 @@ import { z } from 'zod';
 const passwordSchema = z.object({
   app_name: z.string().min(1, 'Tên ứng dụng là bắt buộc'),
   type: z.enum(['password', 'webhook', 'api_key', 'token', 'other']).optional(),
-  username: z.string().optional(),
+  username: z.string().nullable().optional(),
   password: z.string().min(1, 'Mật khẩu là bắt buộc'),
 });
 

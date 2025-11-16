@@ -126,3 +126,32 @@ export interface Password {
   created_at: string;
   updated_at: string;
 }
+
+export type AutomationTaskType = 'http_request' | 'script';
+
+export interface AutomationScript {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string | null;
+  path: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationTask {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string | null;
+  type: AutomationTaskType;
+  config: string; // JSON string
+  schedule: string; // Cron expression or interval
+  enabled: number; // 0 or 1 (SQLite boolean)
+  webhook_id: number | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  run_count: number;
+  created_at: string;
+  updated_at: string;
+}

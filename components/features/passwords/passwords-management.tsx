@@ -202,30 +202,32 @@ export default function PasswordsManagement() {
               </div>
             </CardHeader>
             <CardContent className="space-y-1">
-              {password.username &&
-                password.type !== 'webhook' &&
-                password.type !== 'api_key' && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground min-w-[60px] shrink-0">
-                      Username:
+              {password.username && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground min-w-[60px] shrink-0">
+                    {password.type === 'webhook'
+                      ? 'Tên:'
+                      : password.type === 'api_key'
+                      ? 'Tên:'
+                      : 'Username:'}
+                  </span>
+                  <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                    <span className="text-xs truncate">
+                      {password.username}
                     </span>
-                    <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                      <span className="text-xs font-mono truncate">
-                        {password.username}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 shrink-0"
-                        onClick={() =>
-                          handleCopy(password.username!, 'Username')
-                        }
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 shrink-0"
+                      onClick={() =>
+                        handleCopy(password.username!, password.type === 'webhook' || password.type === 'api_key' ? 'Tên' : 'Username')
+                      }
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
-                )}
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground min-w-[60px] shrink-0">
                   {password.type === 'webhook'

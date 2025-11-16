@@ -15,6 +15,7 @@ import {
   Settings,
   Tag,
   Key,
+  Zap,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -58,6 +59,12 @@ const navItems = [
     icon: Key,
     tab: undefined,
     route: '/passwords',
+  },
+  {
+    title: 'Automation',
+    icon: Zap,
+    tab: undefined,
+    route: '/automation',
   },
 ];
 
