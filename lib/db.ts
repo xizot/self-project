@@ -134,6 +134,33 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Apps table (danh sách các ứng dụng)
+  CREATE TABLE IF NOT EXISTS apps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+  );
+
+  -- Passwords table (quản lý mật khẩu của các app/website khác)
+  CREATE TABLE IF NOT EXISTS passwords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    app_name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'password',
+    username TEXT,
+    email TEXT,
+    password TEXT NOT NULL,
+    url TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
@@ -143,6 +170,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_statuses_user ON statuses(user_id);
   CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
   CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
+  CREATE INDEX IF NOT EXISTS idx_apps_user ON apps(user_id);
+  CREATE INDEX IF NOT EXISTS idx_passwords_user ON passwords(user_id);
   CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_board ON kanban_cards(board_id);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_status ON kanban_cards(status);
@@ -157,6 +186,7 @@ try {
     { name: 'categories', hasColumn: false },
     { name: 'tasks', hasColumn: false },
     { name: 'notes', hasColumn: false },
+    { name: 'passwords', hasColumn: false },
   ];
 
   for (const table of tables) {
@@ -189,6 +219,17 @@ try {
     db.exec(
       `CREATE INDEX IF NOT EXISTS idx_kanban_cards_todo ON kanban_cards(todo_id);`
     );
+  }
+
+  // Add type column to passwords table if it doesn't exist
+  const passwordsInfo = db
+    .prepare('PRAGMA table_info(passwords)')
+    .all() as Array<{ name: string }>;
+  const hasType = passwordsInfo.some((col) => col.name === 'type');
+
+  if (!hasType) {
+    db.exec(`ALTER TABLE passwords ADD COLUMN type TEXT NOT NULL DEFAULT 'password';`);
+    console.log('Added type column to passwords');
   }
 } catch (error: any) {
   if (error?.message && !error.message.includes('duplicate column')) {

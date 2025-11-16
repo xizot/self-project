@@ -14,6 +14,7 @@ import {
   FolderKanban,
   Settings,
   Tag,
+  Key,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,6 +52,12 @@ const navItems = [
     icon: Tag,
     tab: undefined,
     route: '/categories',
+  },
+  {
+    title: 'Mật khẩu',
+    icon: Key,
+    tab: undefined,
+    route: '/passwords',
   },
 ];
 
