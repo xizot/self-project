@@ -1,0 +1,133 @@
+'use client';
+
+import { Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import {
+  CheckSquare,
+  LayoutGrid,
+  StickyNote,
+  FolderKanban,
+  Settings,
+} from 'lucide-react';
+
+interface SidebarProps {
+  collapsed: boolean;
+  onNavClick?: () => void;
+}
+
+const navItems = [
+  {
+    title: 'Todo List',
+    icon: CheckSquare,
+    tab: 'todos',
+    route: undefined,
+  },
+  {
+    title: 'Kanban',
+    icon: LayoutGrid,
+    tab: 'kanban',
+    route: undefined,
+  },
+  {
+    title: 'Ghi chú',
+    icon: StickyNote,
+    tab: undefined,
+    route: '/notes',
+  },
+  {
+    title: 'Projects',
+    icon: FolderKanban,
+    tab: undefined,
+    route: '/projects',
+  },
+  {
+    title: 'Trạng thái',
+    icon: Settings,
+    tab: undefined,
+    route: '/statuses',
+  },
+];
+
+function SidebarContent({ collapsed, onNavClick }: SidebarProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentTab =
+    searchParams.get('tab') || (pathname === '/' ? 'todos' : '');
+
+  const handleNavClick = (tab: string, route?: string) => {
+    if (route) {
+      router.push(route);
+    } else {
+      router.push(`/?tab=${tab}`, { scroll: false });
+    }
+    onNavClick?.();
+  };
+
+  return (
+    <div
+      className={cn(
+        'fixed left-0 top-0 h-screen border-r bg-background transition-all duration-300 flex flex-col z-30',
+        collapsed ? 'w-16' : 'w-64'
+      )}
+    >
+      {/* Sidebar Header */}
+      <div className="flex h-16 items-center border-b px-4">
+        {!collapsed && (
+          <h2 className="text-lg font-semibold">Quản lý Cá nhân</h2>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = item.route
+            ? pathname === item.route
+            : currentTab === item.tab;
+
+          return (
+            <button
+              key={item.title}
+              onClick={() => handleNavClick(item.tab || '', item.route)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full',
+                'hover:bg-accent hover:text-accent-foreground',
+                isActive && 'bg-accent text-accent-foreground',
+                collapsed && 'justify-center'
+              )}
+              title={collapsed ? item.title : undefined}
+            >
+              <Icon className="h-5 w-5 flex-shrink-0" />
+              {!collapsed && <span>{item.title}</span>}
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+export default function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={cn(
+            'fixed left-0 top-0 h-screen border-r bg-background flex flex-col z-30',
+            props.collapsed ? 'w-16' : 'w-64'
+          )}
+        >
+          <div className="flex h-16 items-center border-b px-4">
+            {!props.collapsed && (
+              <h2 className="text-lg font-semibold">Quản lý Cá nhân</h2>
+            )}
+          </div>
+        </div>
+      }
+    >
+      <SidebarContent {...props} />
+    </Suspense>
+  );
+}
