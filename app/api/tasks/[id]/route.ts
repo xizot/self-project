@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { Task } from '@/lib/types';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const taskSchema = z.object({
   project_id: z.number().optional().nullable(),
@@ -20,9 +21,47 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth();
     const { id } = await params;
     const body = await request.json();
     const validated = taskSchema.parse(body);
+
+    // Verify task belongs to user
+    const existingTask = db
+      .prepare('SELECT id FROM tasks WHERE id = ? AND user_id = ?')
+      .get(parseInt(id), user.id);
+    if (!existingTask) {
+      return NextResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify status belongs to user if updating
+    if (validated.status_id !== undefined) {
+      const status = db
+        .prepare('SELECT id FROM statuses WHERE id = ? AND user_id = ?')
+        .get(validated.status_id, user.id);
+      if (!status) {
+        return NextResponse.json(
+          { error: 'Status not found' },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Verify project belongs to user if updating
+    if (validated.project_id !== undefined && validated.project_id !== null) {
+      const project = db
+        .prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?')
+        .get(validated.project_id, user.id);
+      if (!project) {
+        return NextResponse.json(
+          { error: 'Project not found' },
+          { status: 404 }
+        );
+      }
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -68,12 +107,12 @@ export async function PATCH(
     }
 
     updates.push("updated_at = datetime('now')");
-    values.push(parseInt(id));
+    values.push(parseInt(id), user.id);
 
     const stmt = db.prepare(`
       UPDATE tasks
       SET ${updates.join(', ')}
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
 
     stmt.run(...values);
@@ -104,9 +143,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth();
     const { id } = await params;
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    const result = stmt.run(parseInt(id));
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?');
+    const result = stmt.run(parseInt(id), user.id);
 
     if (result.changes === 0) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });

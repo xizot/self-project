@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Status } from '@/lib/types';
-import StatusForm from '@/components/features/statuses/status-form';
-
+import { Category } from '@/lib/types';
+import CategoryForm from '@/components/features/categories/category-form';
 import {
   Trash2,
   Edit,
@@ -33,13 +32,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function StatusItemList({
-  status,
+function CategoryItemList({
+  category,
   onEdit,
   onDelete,
 }: {
-  status: Status;
-  onEdit: (status: Status) => void;
+  category: Category;
+  onEdit: (category: Category) => void;
   onDelete: (id: number) => void;
 }) {
   const {
@@ -49,7 +48,7 @@ function StatusItemList({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: status.id.toString() });
+  } = useSortable({ id: category.id.toString() });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -73,24 +72,24 @@ function StatusItemList({
       <div className="flex-1 flex items-center gap-4">
         <div
           className="w-4 h-4 rounded-full border-2 border-background shadow-sm"
-          style={{ backgroundColor: status.color }}
+          style={{ backgroundColor: category.color }}
         />
         <div className="flex-1">
-          <div className="font-medium">{status.name}</div>
-          <div className="text-sm text-muted-foreground">#{status.color}</div>
+          <div className="font-medium">{category.name}</div>
+          <div className="text-sm text-muted-foreground">#{category.color}</div>
         </div>
         <Badge
-          style={{ backgroundColor: status.color, color: '#fff' }}
+          style={{ backgroundColor: category.color, color: '#fff' }}
           className="min-w-[100px] text-center"
         >
-          {status.name}
+          {category.name}
         </Badge>
       </div>
       <div className="flex gap-2">
-        <Button variant="ghost" size="sm" onClick={() => onEdit(status)}>
+        <Button variant="ghost" size="sm" onClick={() => onEdit(category)}>
           <Edit className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onDelete(status.id)}>
+        <Button variant="ghost" size="sm" onClick={() => onDelete(category.id)}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -98,13 +97,13 @@ function StatusItemList({
   );
 }
 
-function StatusItemCard({
-  status,
+function CategoryItemCard({
+  category,
   onEdit,
   onDelete,
 }: {
-  status: Status;
-  onEdit: (status: Status) => void;
+  category: Category;
+  onEdit: (category: Category) => void;
   onDelete: (id: number) => void;
 }) {
   const {
@@ -114,7 +113,7 @@ function StatusItemCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: status.id.toString() });
+  } = useSortable({ id: category.id.toString() });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -134,21 +133,21 @@ function StatusItemCard({
             >
               <GripVertical className="h-5 w-5 text-muted-foreground" />
             </div>
-            <Badge style={{ backgroundColor: status.color, color: '#fff' }}>
-              {status.name}
+            <Badge style={{ backgroundColor: category.color, color: '#fff' }}>
+              {category.name}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              #{status.color}
+              #{category.color}
             </span>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onEdit(status)}>
+            <Button variant="ghost" size="sm" onClick={() => onEdit(category)}>
               <Edit className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onDelete(status.id)}
+              onClick={() => onDelete(category.id)}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -159,10 +158,10 @@ function StatusItemCard({
   );
 }
 
-export default function StatusesManagement() {
-  const [statuses, setStatuses] = useState<Status[]>([]);
+export default function CategoriesManagement() {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingStatus, setEditingStatus] = useState<Status | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
@@ -175,44 +174,44 @@ export default function StatusesManagement() {
   );
 
   useEffect(() => {
-    fetchStatuses();
+    fetchCategories();
   }, []);
 
-  const fetchStatuses = async () => {
+  const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/statuses');
+      const res = await fetch('/api/categories');
       const data = await res.json();
-      setStatuses(data);
+      setCategories(data);
     } catch (error) {
-      console.error('Error fetching statuses:', error);
+      console.error('Error fetching categories:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleFormSuccess = () => {
-    fetchStatuses();
-    setEditingStatus(null);
+    fetchCategories();
+    setEditingCategory(null);
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Bạn có chắc muốn xóa trạng thái này?')) return;
+    if (!confirm('Bạn có chắc muốn xóa danh mục này?')) return;
 
     try {
-      const res = await fetch(`/api/statuses/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        fetchStatuses();
+        fetchCategories();
       } else {
         const data = await res.json();
-        alert(data.error || 'Không thể xóa trạng thái đang được sử dụng');
+        alert(data.error || 'Không thể xóa danh mục đang được sử dụng');
       }
     } catch (error) {
-      console.error('Error deleting status:', error);
+      console.error('Error deleting category:', error);
     }
   };
 
-  const handleEdit = (status: Status) => {
-    setEditingStatus(status);
+  const handleEdit = (category: Category) => {
+    setEditingCategory(category);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -225,17 +224,19 @@ export default function StatusesManagement() {
 
     if (!over || active.id === over.id) return;
 
-    const oldIndex = statuses.findIndex((s) => s.id.toString() === active.id);
-    const newIndex = statuses.findIndex((s) => s.id.toString() === over.id);
+    const oldIndex = categories.findIndex(
+      (c) => c.id.toString() === active.id
+    );
+    const newIndex = categories.findIndex((c) => c.id.toString() === over.id);
 
-    const newStatuses = arrayMove(statuses, oldIndex, newIndex);
-    setStatuses(newStatuses);
+    const newCategories = arrayMove(categories, oldIndex, newIndex);
+    setCategories(newCategories);
 
     // Update positions
-    for (let i = 0; i < newStatuses.length; i++) {
-      if (newStatuses[i].position !== i) {
+    for (let i = 0; i < newCategories.length; i++) {
+      if (newCategories[i].position !== i) {
         try {
-          await fetch(`/api/statuses/${newStatuses[i].id}`, {
+          await fetch(`/api/categories/${newCategories[i].id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ position: i }),
@@ -255,9 +256,9 @@ export default function StatusesManagement() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Quản lý Trạng thái</h2>
+          <h2 className="text-2xl font-bold">Quản lý Danh mục</h2>
           <p className="text-muted-foreground">
-            Quản lý các trạng thái cho tasks với tên và màu sắc tùy chỉnh
+            Quản lý các danh mục cho tasks với tên và màu sắc tùy chỉnh
           </p>
         </div>
         <div className="flex gap-2">
@@ -276,13 +277,12 @@ export default function StatusesManagement() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <StatusForm
+          <CategoryForm
             onSuccess={handleFormSuccess}
-            editingStatus={editingStatus}
+            editingCategory={editingCategory}
           />
         </div>
       </div>
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -291,14 +291,14 @@ export default function StatusesManagement() {
       >
         {viewMode === 'list' ? (
           <SortableContext
-            items={statuses.map((s) => s.id.toString())}
+            items={categories.map((c) => c.id.toString())}
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-2">
-              {statuses.map((status) => (
-                <StatusItemList
-                  key={status.id}
-                  status={status}
+              {categories.map((category) => (
+                <CategoryItemList
+                  key={category.id}
+                  category={category}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
@@ -307,14 +307,14 @@ export default function StatusesManagement() {
           </SortableContext>
         ) : (
           <SortableContext
-            items={statuses.map((s) => s.id.toString())}
+            items={categories.map((c) => c.id.toString())}
             strategy={verticalListSortingStrategy}
           >
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {statuses.map((status) => (
-                <StatusItemCard
-                  key={status.id}
-                  status={status}
+              {categories.map((category) => (
+                <CategoryItemCard
+                  key={category.id}
+                  category={category}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
@@ -324,29 +324,22 @@ export default function StatusesManagement() {
         )}
         <DragOverlay>
           {activeId ? (
-            <div className="flex items-center gap-4 p-4 border rounded-lg bg-card shadow-lg">
-              <GripVertical className="h-5 w-5 text-muted-foreground" />
-              <div
-                className="w-4 h-4 rounded-full"
-                style={{
-                  backgroundColor: statuses.find(
-                    (s) => s.id.toString() === activeId
-                  )?.color,
-                }}
-              />
-              <span className="font-medium">
-                {statuses.find((s) => s.id.toString() === activeId)?.name}
-              </span>
-            </div>
+            <Card className="min-w-[280px]">
+              <CardHeader>
+                <Badge>
+                  {categories.find((c) => c.id.toString() === activeId)?.name}
+                </Badge>
+              </CardHeader>
+            </Card>
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {statuses.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          Chưa có trạng thái nào. Hãy thêm trạng thái mới!
+      {categories.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          Chưa có danh mục nào. Hãy thêm danh mục đầu tiên!
         </div>
       )}
     </div>
   );
 }
+

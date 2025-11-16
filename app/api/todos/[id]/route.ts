@@ -98,7 +98,7 @@ export async function PATCH(
     // Invalidate cache (fail silently if Redis is unavailable)
     try {
       await redis.del('todos:*');
-    } catch (error) {
+    } catch {
       // Redis unavailable, continue without cache
     }
 
@@ -151,7 +151,7 @@ export async function DELETE(
     // Invalidate cache (fail silently if Redis is unavailable)
     try {
       await redis.del('todos:*');
-    } catch (error) {
+    } catch {
       // Redis unavailable, continue without cache
     }
 

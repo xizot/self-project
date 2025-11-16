@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { Note } from '@/lib/types';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const noteSchema = z.object({
   title: z.string().min(1),
@@ -13,12 +14,13 @@ const noteSchema = z.object({
 // GET all notes
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category');
     const tag = searchParams.get('tag');
 
-    let query = 'SELECT * FROM notes WHERE 1=1';
-    const params: any[] = [];
+    let query = 'SELECT * FROM notes WHERE user_id = ?';
+    const params: any[] = [user.id];
 
     if (category) {
       query += ' AND category = ?';
@@ -46,15 +48,17 @@ export async function GET(request: NextRequest) {
 // POST create new note
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const body = await request.json();
     const validated = noteSchema.parse(body);
 
     const stmt = db.prepare(`
-      INSERT INTO notes (title, content, category, tags)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO notes (user_id, title, content, category, tags)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
+      user.id,
       validated.title,
       validated.content || null,
       validated.category || null,

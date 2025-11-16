@@ -31,7 +31,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Task, Project, Status, Priority } from '@/lib/types';
+import { Task, Project, Status, Category } from '@/lib/types';
 import { Plus } from 'lucide-react';
 
 interface TaskFormProps {
@@ -65,6 +65,7 @@ export default function TaskForm({
   );
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -78,37 +79,6 @@ export default function TaskForm({
       due_date: '',
     },
   });
-
-  useEffect(() => {
-    fetchStatuses();
-    fetchProjects();
-  }, []);
-
-  useEffect(() => {
-    if (statuses.length > 0 && form.getValues('status_id') === 0) {
-      form.setValue('status_id', statuses[0].id);
-    }
-  }, [statuses, form]);
-
-  useEffect(() => {
-    if (initialEditingTask) {
-      setEditingTask(initialEditingTask);
-      form.reset({
-        project_id: initialEditingTask.project_id || projectId || null,
-        title: initialEditingTask.title,
-        description: initialEditingTask.description || '',
-        status_id: initialEditingTask.status_id,
-        priority: initialEditingTask.priority,
-        category: initialEditingTask.category || '',
-        due_date: initialEditingTask.due_date
-          ? initialEditingTask.due_date.split('T')[0]
-          : '',
-      });
-      setOpen(true);
-    } else {
-      setEditingTask(null);
-    }
-  }, [initialEditingTask, projectId, form]);
 
   const fetchStatuses = async () => {
     try {
@@ -127,6 +97,16 @@ export default function TaskForm({
       setProjects(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      setCategories(data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -181,6 +161,43 @@ export default function TaskForm({
       }
     }
   };
+
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([fetchStatuses(), fetchProjects(), fetchCategories()]);
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (statuses.length > 0 && form.getValues('status_id') === 0) {
+      form.setValue('status_id', statuses[0].id);
+    }
+  }, [statuses, form]);
+
+  useEffect(() => {
+    if (initialEditingTask) {
+      const resetForm = () => {
+        setEditingTask(initialEditingTask);
+        form.reset({
+          project_id: initialEditingTask.project_id || projectId || null,
+          title: initialEditingTask.title,
+          description: initialEditingTask.description || '',
+          status_id: initialEditingTask.status_id,
+          priority: initialEditingTask.priority,
+          category: initialEditingTask.category || '',
+          due_date: initialEditingTask.due_date
+            ? initialEditingTask.due_date
+            : '',
+        });
+        setOpen(true);
+      };
+      resetForm();
+    } else {
+      setEditingTask(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEditingTask, projectId]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -261,7 +278,7 @@ export default function TaskForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="mb-1">
-                    Tiêu đề <span className="text-red-500">*</span>
+                    Tiêu đề<span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input {...field} />
@@ -290,7 +307,7 @@ export default function TaskForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="mb-1">
-                      Trạng thái <span className="text-red-500">*</span>
+                      Trạng thái<span className="text-red-500">*</span>
                     </FormLabel>
                     <Select
                       value={field.value.toString()}
@@ -328,10 +345,7 @@ export default function TaskForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="mb-1">Ưu tiên</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
                           <SelectValue />
@@ -354,12 +368,32 @@ export default function TaskForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="mb-1">Danh mục</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Ví dụ: Công việc, Cá nhân..."
-                    />
-                  </FormControl>
+                  <Select
+                    onValueChange={(value) =>
+                      field.onChange(value === 'none' ? null : value)
+                    }
+                    value={field.value || 'none'}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Chọn danh mục" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Không có danh mục</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.name}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: category.color }}
+                            />
+                            {category.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -371,7 +405,49 @@ export default function TaskForm({
                 <FormItem>
                   <FormLabel className="mb-1">Hạn chót</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input
+                      type="datetime-local"
+                      value={
+                        field.value
+                          ? (() => {
+                              // Parse the stored datetime string
+                              // If it's a local datetime (YYYY-MM-DDTHH:mm:ss), use it directly
+                              // If it's an ISO string with timezone, convert to local
+                              if (field.value.includes('T') && !field.value.includes('Z') && !field.value.includes('+')) {
+                                // Local datetime string, extract date and time parts
+                                const [datePart, timePart] = field.value.split('T');
+                                const timeOnly = timePart.split(':').slice(0, 2).join(':');
+                                return `${datePart}T${timeOnly}`;
+                              } else {
+                                // ISO string with timezone, convert to local
+                                const date = new Date(field.value);
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              }
+                            })()
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value) {
+                          // datetime-local value is in local time (YYYY-MM-DDTHH:mm)
+                          // Parse the value to get local time components
+                          const [datePart, timePart] = value.split('T');
+
+                          // To preserve the exact local time when storing:
+                          // Store the local datetime as-is (YYYY-MM-DDTHH:mm:00)
+                          // This way, when we parse it, we interpret it as local time
+                          const localDateTimeString = `${datePart}T${timePart}:00`;
+                          field.onChange(localDateTimeString);
+                        } else {
+                          field.onChange('');
+                        }
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -393,4 +469,3 @@ export default function TaskForm({
     </Dialog>
   );
 }
-

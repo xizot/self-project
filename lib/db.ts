@@ -19,29 +19,58 @@ db.pragma('foreign_keys = ON');
 
 // Create tables
 db.exec(`
+  -- Users table
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Projects table (dùng chung cho todo và kanban)
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     color TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   -- Statuses table (quản lý trạng thái với màu)
   CREATE TABLE IF NOT EXISTS statuses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT '#3b82f6',
     position INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+  );
+
+  -- Categories table (quản lý danh mục cho tasks)
+  CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#6366f1',
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
   );
 
   -- Tasks table (dùng chung cho todo và kanban)
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
     project_id INTEGER,
     title TEXT NOT NULL,
     description TEXT,
@@ -52,6 +81,7 @@ db.exec(`
     position INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
     FOREIGN KEY (status_id) REFERENCES statuses(id) ON DELETE RESTRICT
   );
@@ -94,28 +124,60 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     content TEXT,
     category TEXT,
     tags TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+  CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks(position);
+  CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+  CREATE INDEX IF NOT EXISTS idx_statuses_user ON statuses(user_id);
+  CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
   CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_board ON kanban_cards(board_id);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_status ON kanban_cards(status);
+  CREATE INDEX IF NOT EXISTS idx_categories_position ON categories(position);
 `);
 
-// Migration: Add todo_id column if it doesn't exist
+// Migration: Add user_id columns to existing tables
 try {
-  const tableInfo = db
+  const tables = [
+    { name: 'projects', hasColumn: false },
+    { name: 'statuses', hasColumn: false },
+    { name: 'categories', hasColumn: false },
+    { name: 'tasks', hasColumn: false },
+    { name: 'notes', hasColumn: false },
+  ];
+
+  for (const table of tables) {
+    const tableInfo = db
+      .prepare(`PRAGMA table_info(${table.name})`)
+      .all() as Array<{ name: string }>;
+    const hasUserId = tableInfo.some((col) => col.name === 'user_id');
+
+    if (!hasUserId) {
+      // For existing data, we'll set user_id to NULL temporarily
+      // In production, you'd want to migrate existing data to a default user
+      db.exec(`ALTER TABLE ${table.name} ADD COLUMN user_id INTEGER;`);
+      console.log(`Added user_id column to ${table.name}`);
+    }
+  }
+
+  // Add todo_id column if it doesn't exist
+  const kanbanCardsInfo = db
     .prepare('PRAGMA table_info(kanban_cards)')
     .all() as Array<{ name: string }>;
-  const hasTodoId = tableInfo.some((col) => col.name === 'todo_id');
+  const hasTodoId = kanbanCardsInfo.some((col) => col.name === 'todo_id');
 
   if (!hasTodoId) {
     db.exec(`ALTER TABLE kanban_cards ADD COLUMN todo_id INTEGER;`);
@@ -124,50 +186,17 @@ try {
     );
     console.log('Added todo_id column to kanban_cards');
   } else {
-    // Column exists, ensure index exists
     db.exec(
       `CREATE INDEX IF NOT EXISTS idx_kanban_cards_todo ON kanban_cards(todo_id);`
     );
   }
 } catch (error: any) {
-  // Column might already exist or other error
   if (error?.message && !error.message.includes('duplicate column')) {
-    console.log('Migration check for todo_id:', error);
+    console.log('Migration check error:', error);
   }
 }
 
-// Initialize default statuses if they don't exist
-try {
-  const statusCount = db
-    .prepare('SELECT COUNT(*) as count FROM statuses')
-    .get() as { count: number };
-  if (statusCount.count === 0) {
-    db.exec(`
-      INSERT INTO statuses (name, color, position) VALUES
-        ('Todo', '#3b82f6', 0),
-        ('In Progress', '#f59e0b', 1),
-        ('Done', '#10b981', 2);
-    `);
-    console.log('Initialized default statuses');
-  }
-} catch (error: any) {
-  console.log('Error initializing statuses:', error);
-}
-
-// Initialize default project if it doesn't exist
-try {
-  const projectCount = db
-    .prepare('SELECT COUNT(*) as count FROM projects')
-    .get() as { count: number };
-  if (projectCount.count === 0) {
-    db.exec(`
-      INSERT INTO projects (name, description, color) VALUES
-        ('Default Project', 'Dự án mặc định', '#6366f1');
-    `);
-    console.log('Initialized default project');
-  }
-} catch (error: any) {
-  console.log('Error initializing projects:', error);
-}
+// Note: Default data initialization will be done per user when they register
+// This ensures each user has their own default statuses, projects, and categories
 
 export default db;

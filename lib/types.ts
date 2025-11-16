@@ -1,7 +1,16 @@
 export type Priority = 'low' | 'medium' | 'high';
 
+export interface User {
+  id: number;
+  email: string;
+  name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Project {
   id: number;
+  user_id: number;
   name: string;
   description: string | null;
   color: string | null;
@@ -11,6 +20,17 @@ export interface Project {
 
 export interface Status {
   id: number;
+  user_id: number;
+  name: string;
+  color: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Category {
+  id: number;
+  user_id: number;
   name: string;
   color: string;
   position: number;
@@ -20,6 +40,7 @@ export interface Status {
 
 export interface Task {
   id: number;
+  user_id: number;
   project_id: number | null;
   title: string;
   description: string | null;
@@ -30,6 +51,9 @@ export interface Task {
   position: number;
   created_at: string;
   updated_at: string;
+  // For UI display, not directly in DB
+  status?: Status;
+  project?: Project | null;
 }
 
 // Legacy types (giữ lại để tương thích)
@@ -70,6 +94,7 @@ export interface KanbanCard {
 
 export interface Note {
   id: number;
+  user_id: number;
   title: string;
   content: string | null;
   category: string | null;

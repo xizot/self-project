@@ -33,7 +33,7 @@ export function syncTodoToKanban(
     const board = getDefaultTodosBoard();
 
     // Check if card already exists
-    let card = db
+    const card = db
       .prepare('SELECT * FROM kanban_cards WHERE todo_id = ?')
       .get(todoId) as any;
 

@@ -10,10 +10,10 @@ import {
 } from '@/components/ui/tooltip';
 import {
   CheckSquare,
-  LayoutGrid,
   StickyNote,
   FolderKanban,
   Settings,
+  Tag,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,15 +23,9 @@ interface SidebarProps {
 
 const navItems = [
   {
-    title: 'Todo List',
+    title: 'Công việc',
     icon: CheckSquare,
     tab: 'todos',
-    route: undefined,
-  },
-  {
-    title: 'Kanban',
-    icon: LayoutGrid,
-    tab: 'kanban',
     route: undefined,
   },
   {
@@ -51,6 +45,12 @@ const navItems = [
     icon: Settings,
     tab: undefined,
     route: '/statuses',
+  },
+  {
+    title: 'Danh mục',
+    icon: Tag,
+    tab: undefined,
+    route: '/categories',
   },
 ];
 
@@ -88,9 +88,11 @@ function SidebarContent({ collapsed, onNavClick }: SidebarProps) {
       <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
+          // For items with route, check if pathname matches
+          // For items with tab, check if we're on home page (any tab means active)
           const isActive = item.route
             ? pathname === item.route
-            : currentTab === item.tab;
+            : pathname === '/' && item.tab;
 
             const button = (
               <button
@@ -104,7 +106,7 @@ function SidebarContent({ collapsed, onNavClick }: SidebarProps) {
                   collapsed && 'justify-center'
                 )}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
+                <Icon className="h-5 w-5 shrink-0" />
                 {!collapsed && <span>{item.title}</span>}
               </button>
             );

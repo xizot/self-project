@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { Project } from '@/lib/types';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const projectSchema = z.object({
   name: z.string().min(1),
@@ -12,9 +13,10 @@ const projectSchema = z.object({
 // GET all projects
 export async function GET() {
   try {
+    const user = await requireAuth();
     const projects = db
-      .prepare('SELECT * FROM projects ORDER BY created_at DESC')
-      .all() as Project[];
+      .prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC')
+      .all(user.id) as Project[];
     return NextResponse.json(projects);
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -28,15 +30,17 @@ export async function GET() {
 // POST create new project
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
     const body = await request.json();
     const validated = projectSchema.parse(body);
 
     const stmt = db.prepare(`
-      INSERT INTO projects (name, description, color)
-      VALUES (?, ?, ?)
+      INSERT INTO projects (user_id, name, description, color)
+      VALUES (?, ?, ?, ?)
     `);
 
     const result = stmt.run(
+      user.id,
       validated.name,
       validated.description || null,
       validated.color || null

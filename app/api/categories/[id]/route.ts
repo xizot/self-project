@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { Status } from '@/lib/types';
+import { Category } from '@/lib/types';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 
-const statusSchema = z.object({
+const categorySchema = z.object({
   name: z.string().min(1).optional(),
-  color: z.string().min(1).optional(),
+  color: z.string().optional(),
   position: z.number().optional(),
 });
 
-// PATCH update status
+// PATCH update category
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,15 +19,15 @@ export async function PATCH(
     const user = await requireAuth();
     const { id } = await params;
     const body = await request.json();
-    const validated = statusSchema.parse(body);
+    const validated = categorySchema.parse(body);
 
-    // Verify status belongs to user
-    const existingStatus = db
-      .prepare('SELECT id FROM statuses WHERE id = ? AND user_id = ?')
+    // Verify category belongs to user
+    const existingCategory = db
+      .prepare('SELECT id FROM categories WHERE id = ? AND user_id = ?')
       .get(parseInt(id), user.id);
-    if (!existingStatus) {
+    if (!existingCategory) {
       return NextResponse.json(
-        { error: 'Status not found' },
+        { error: 'Category not found' },
         { status: 404 }
       );
     }
@@ -58,19 +58,20 @@ export async function PATCH(
     updates.push("updated_at = datetime('now')");
     values.push(parseInt(id), user.id);
 
-    const stmt = db.prepare(`
-      UPDATE statuses
-      SET ${updates.join(', ')}
-      WHERE id = ? AND user_id = ?
-    `);
-
+    const stmt = db.prepare(
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`
+    );
     stmt.run(...values);
 
-    const status = db
-      .prepare('SELECT * FROM statuses WHERE id = ?')
-      .get(parseInt(id)) as Status;
+    const category = db
+      .prepare('SELECT * FROM categories WHERE id = ?')
+      .get(parseInt(id)) as Category;
 
-    return NextResponse.json(status);
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(category);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -78,15 +79,15 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    console.error('Error updating status:', error);
+    console.error('Error updating category:', error);
     return NextResponse.json(
-      { error: 'Failed to update status' },
+      { error: 'Failed to update category' },
       { status: 500 }
     );
   }
 }
 
-// DELETE status
+// DELETE category
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -95,42 +96,49 @@ export async function DELETE(
     const user = await requireAuth();
     const { id } = await params;
 
-    // Verify status belongs to user
-    const existingStatus = db
-      .prepare('SELECT id FROM statuses WHERE id = ? AND user_id = ?')
+    // Verify category belongs to user
+    const existingCategory = db
+      .prepare('SELECT id FROM categories WHERE id = ? AND user_id = ?')
       .get(parseInt(id), user.id);
-    if (!existingStatus) {
+    if (!existingCategory) {
       return NextResponse.json(
-        { error: 'Status not found' },
+        { error: 'Category not found' },
         { status: 404 }
       );
     }
 
-    // Check if status is being used
-    const taskCount = db
-      .prepare('SELECT COUNT(*) as count FROM tasks WHERE status_id = ? AND user_id = ?')
-      .get(parseInt(id), user.id) as { count: number };
+    // Check if category is used in tasks
+    const categoryName = db
+      .prepare('SELECT name FROM categories WHERE id = ? AND user_id = ?')
+      .get(parseInt(id), user.id) as { name: string } | undefined;
+    
+    if (categoryName) {
+      const tasksWithCategory = db
+        .prepare('SELECT COUNT(*) as count FROM tasks WHERE category = ? AND user_id = ?')
+        .get(categoryName.name, user.id) as { count: number };
 
-    if (taskCount.count > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete status that is being used by tasks' },
-        { status: 400 }
-      );
+      if (tasksWithCategory.count > 0) {
+        return NextResponse.json(
+          { error: 'Cannot delete category that is used in tasks' },
+          { status: 400 }
+        );
+      }
     }
 
-    const stmt = db.prepare('DELETE FROM statuses WHERE id = ? AND user_id = ?');
+    const stmt = db.prepare('DELETE FROM categories WHERE id = ? AND user_id = ?');
     const result = stmt.run(parseInt(id), user.id);
 
     if (result.changes === 0) {
-      return NextResponse.json({ error: 'Status not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting status:', error);
+    console.error('Error deleting category:', error);
     return NextResponse.json(
-      { error: 'Failed to delete status' },
+      { error: 'Failed to delete category' },
       { status: 500 }
     );
   }
 }
+

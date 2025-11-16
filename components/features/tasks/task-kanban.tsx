@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -9,6 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -20,32 +22,18 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Task, Project, Status, Priority } from '@/lib/types';
-import { Plus, Trash2, Edit, GripVertical } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Task, Project, Status, Priority, Category } from '@/lib/types';
+import { Trash2, Edit, GripVertical, Filter, CheckSquare, LayoutGrid } from 'lucide-react';
+import TaskForm from '@/components/features/tasks/task-form';
+import TimeRemaining from '@/components/features/tasks/time-remaining';
+import TaskFiltersComponent, {
+  TaskFilters,
+} from '@/components/features/tasks/task-filters';
 
 interface KanbanColumnProps {
   status: Status;
@@ -55,13 +43,23 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ status, tasks, onEdit, onDelete }: KanbanColumnProps) {
-  const { setNodeRef } = useSortable({
+  const { setNodeRef: setSortableRef } = useSortable({
     id: status.id.toString(),
     disabled: true,
   });
 
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `column-${status.id}`,
+  });
+
   return (
-    <div ref={setNodeRef} className="flex-1 min-w-[300px]">
+    <div
+      ref={(node) => {
+        setSortableRef(node);
+        setDroppableRef(node);
+      }}
+      className="flex-1 min-w-[300px]"
+    >
       <div
         className="bg-muted p-2 rounded-t-lg"
         style={{ borderTop: `3px solid ${status.color}` }}
@@ -70,7 +68,11 @@ function KanbanColumn({ status, tasks, onEdit, onDelete }: KanbanColumnProps) {
           {status.name} ({tasks.length})
         </h3>
       </div>
-      <div className="bg-muted/50 p-4 space-y-2 min-h-[500px] rounded-b-lg">
+      <div
+        className={`bg-muted/50 p-4 space-y-2 min-h-[500px] rounded-b-lg transition-colors ${
+          isOver ? 'bg-primary/5 border-2 border-dashed border-primary' : ''
+        }`}
+      >
         <SortableContext
           items={tasks.map((t) => t.id.toString())}
           strategy={verticalListSortingStrategy}
@@ -130,11 +132,11 @@ function TaskCardItem({ task, onEdit, onDelete }: TaskCardItemProps) {
       {...attributes}
     >
       <CardHeader className="pb-2" {...listeners}>
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-sm">{task.title}</CardTitle>
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-1.5">
+          <CardTitle className="text-sm leading-tight">{task.title}</CardTitle>
+          <div className="flex gap-0.5 items-center" onClick={(e) => e.stopPropagation()}>
             <div className="cursor-grab active:cursor-grabbing">
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <Button
               variant="ghost"
@@ -143,7 +145,7 @@ function TaskCardItem({ task, onEdit, onDelete }: TaskCardItemProps) {
                 e.stopPropagation();
                 onEdit(task);
               }}
-              className="h-6 w-6 p-0"
+              className="h-5 w-5 p-0"
               type="button"
             >
               <Edit className="h-3 w-3" />
@@ -155,15 +157,16 @@ function TaskCardItem({ task, onEdit, onDelete }: TaskCardItemProps) {
                 e.stopPropagation();
                 onDelete(task.id);
               }}
-              className="h-6 w-6 p-0"
+              className="h-5 w-5 p-0"
               type="button"
             >
               <Trash2 className="h-3 w-3" />
             </Button>
           </div>
         </div>
-        <CardDescription>
-          <div className="flex gap-2 flex-wrap">
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground min-w-[50px]">Ưu tiên:</span>
             <Badge
               variant={getPriorityColor(task.priority)}
               className="text-xs"
@@ -174,16 +177,25 @@ function TaskCardItem({ task, onEdit, onDelete }: TaskCardItemProps) {
                   ? 'Trung bình'
                   : 'Thấp'}
             </Badge>
-            {task.project && (
+          </div>
+          {task.project && (
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground min-w-[50px]">Dự án:</span>
               <Badge variant="outline" className="text-xs">
                 {task.project.name}
               </Badge>
-            )}
-          </div>
-        </CardDescription>
+            </div>
+          )}
+          {task.due_date && (
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground min-w-[50px]">Hạn:</span>
+              <TimeRemaining dueDate={task.due_date} />
+            </div>
+          )}
+        </div>
       </CardHeader>
       {task.description && (
-        <CardContent>
+        <CardContent className="pt-0 pb-2">
           <p className="text-xs text-muted-foreground line-clamp-2">
             {task.description}
           </p>
@@ -194,24 +206,26 @@ function TaskCardItem({ task, onEdit, onDelete }: TaskCardItemProps) {
 }
 
 export default function TaskKanban() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<
     (Task & { project?: Project; status?: Status })[]
   >([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<number | 'all'>('all');
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [formData, setFormData] = useState({
-    project_id: null as number | null,
-    title: '',
-    description: '',
-    status_id: 0,
-    priority: 'medium' as Priority,
-    category: '',
-    due_date: '',
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<TaskFilters>({
+    search: '',
+    dateFrom: '',
+    dateTo: '',
+    category: 'all',
+    project: 'all',
+    status: 'all',
+    sortBy: 'position',
+    sortOrder: 'asc',
   });
 
   const sensors = useSensors(
@@ -224,27 +238,23 @@ export default function TaskKanban() {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchStatuses(), fetchProjects()]);
+      await Promise.all([fetchStatuses(), fetchProjects(), fetchCategories()]);
     };
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (statuses.length > 0 && projects.length >= 0) {
+    if (statuses.length > 0 && projects.length >= 0 && categories.length >= 0) {
       fetchTasks();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject, statuses.length, projects.length]);
+  }, [filters, statuses.length, projects.length, categories.length]);
 
   const fetchStatuses = async () => {
     try {
       const res = await fetch('/api/statuses');
       const data = await res.json();
       setStatuses(data);
-      if (data.length > 0 && formData.status_id === 0) {
-        setFormData((prev) => ({ ...prev, status_id: data[0].id }));
-      }
     } catch (error) {
       console.error('Error fetching statuses:', error);
     }
@@ -260,11 +270,29 @@ export default function TaskKanban() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      setCategories(data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
   const fetchTasks = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedProject !== 'all')
-        params.append('project_id', selectedProject.toString());
+      if (filters.project !== 'all')
+        params.append('project_id', filters.project.toString());
+      if (filters.status !== 'all')
+        params.append('status_id', filters.status.toString());
+      if (filters.search) params.append('search', filters.search);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      if (filters.category !== 'all') params.append('category', filters.category);
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+      if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
 
       const res = await fetch(`/api/tasks?${params.toString()}`);
       const data = await res.json();
@@ -286,39 +314,6 @@ export default function TaskKanban() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/tasks';
-      const method = editingTask ? 'PATCH' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          project_id: formData.project_id || null,
-        }),
-      });
-
-      if (res.ok) {
-        setOpen(false);
-        setEditingTask(null);
-        setFormData({
-          project_id: null,
-          title: '',
-          description: '',
-          status_id: statuses[0]?.id || 0,
-          priority: 'medium',
-          category: '',
-          due_date: '',
-        });
-        fetchTasks();
-      }
-    } catch (error) {
-      console.error('Error saving task:', error);
-    }
-  };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Bạn có chắc muốn xóa task này?')) return;
@@ -335,17 +330,22 @@ export default function TaskKanban() {
 
   const handleEdit = (task: Task) => {
     setEditingTask(task);
-    setFormData({
-      project_id: task.project_id || null,
-      title: task.title,
-      description: task.description || '',
-      status_id: task.status_id,
-      priority: task.priority,
-      category: task.category || '',
-      due_date: task.due_date ? task.due_date.split('T')[0] : '',
-    });
-    setOpen(true);
   };
+
+  const handleTaskFormSuccess = () => {
+    fetchTasks();
+    setEditingTask(null);
+  };
+
+  const hasActiveFilters =
+    filters.search ||
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.category !== 'all' ||
+    filters.project !== 'all' ||
+    filters.status !== 'all' ||
+    filters.sortBy !== 'position' ||
+    filters.sortOrder !== 'asc';
 
   const handleDragStart = (event: DragStartEvent) => {
     const taskId = parseInt(event.active.id as string);
@@ -360,29 +360,98 @@ export default function TaskKanban() {
     if (!over) return;
 
     const taskId = parseInt(active.id as string);
-    const newStatusId = parseInt(over.id as string);
     const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
 
-    if (!task || task.status_id === newStatusId) return;
+    const overId = over.id as string;
 
-    // Calculate new position
-    const statusTasks = tasks.filter((t) => t.status_id === newStatusId);
-    const newPosition = statusTasks.length;
+    // Check if dropped on a column (column IDs are "column-{statusId}")
+    if (overId.startsWith('column-')) {
+      const statusIdStr = overId.replace('column-', '');
+      const newStatusId = parseInt(statusIdStr);
 
-    try {
-      await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status_id: newStatusId,
-          position: newPosition,
-        }),
-      });
+      if (isNaN(newStatusId)) return;
+      if (task.status_id === newStatusId) return;
 
-      fetchTasks();
-    } catch (error) {
-      console.error('Error moving task:', error);
+      // Calculate new position
+      const statusTasks = tasks.filter((t) => t.status_id === newStatusId);
+      const newPosition = statusTasks.length;
+
+      try {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status_id: newStatusId,
+            position: newPosition,
+          }),
+        });
+
+        fetchTasks();
+      } catch (error) {
+        console.error('Error moving task:', error);
+      }
+      return;
     }
+
+    // Check if over is a status column (status columns have IDs matching status IDs)
+    const statusColumn = statuses.find((s) => s.id.toString() === overId);
+
+    if (statusColumn) {
+      // Dropped on status column
+      const newStatusId = statusColumn.id;
+      if (task.status_id === newStatusId) return;
+
+      // Calculate new position
+      const statusTasks = tasks.filter((t) => t.status_id === newStatusId);
+      const newPosition = statusTasks.length;
+
+      try {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status_id: newStatusId,
+            position: newPosition,
+          }),
+        });
+
+        fetchTasks();
+      } catch (error) {
+        console.error('Error moving task:', error);
+      }
+      return;
+    }
+
+    // If dropped on another task, find the status of that task
+    const overTask = tasks.find((t) => t.id.toString() === overId);
+    if (overTask) {
+      const newStatusId = overTask.status_id;
+      if (task.status_id === newStatusId) return;
+
+      // Calculate new position
+      const statusTasks = tasks.filter((t) => t.status_id === newStatusId);
+      const newPosition = statusTasks.length;
+
+      try {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status_id: newStatusId,
+            position: newPosition,
+          }),
+        });
+
+        fetchTasks();
+      } catch (error) {
+        console.error('Error moving task:', error);
+      }
+    }
+  };
+
+  const handleViewChange = (value: string) => {
+    router.push(`/?tab=${value}`, { scroll: false });
   };
 
   if (loading) {
@@ -392,184 +461,53 @@ export default function TaskKanban() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div className="flex gap-4 items-center">
-          <Select
-            value={
-              selectedProject === 'all' ? 'all' : selectedProject.toString()
-            }
-            onValueChange={(value) =>
-              setSelectedProject(value === 'all' ? 'all' : parseInt(value))
-            }
+        <h2 className="text-2xl font-bold">Công việc</h2>
+        <div className="flex items-center gap-2">
+          <Tabs value="kanban" onValueChange={handleViewChange}>
+            <TabsList>
+              <TabsTrigger value="todos">
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Todo List
+              </TabsTrigger>
+              <TabsTrigger value="kanban">
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                Kanban
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button
+            variant="outline"
+            onClick={() => setFiltersOpen(true)}
+            className="relative"
           >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Chọn project" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả projects</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id.toString()}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Filter className="h-4 w-4 mr-2" />
+            Bộ lọc
+            {hasActiveFilters && (
+              <Badge
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              >
+                !
+              </Badge>
+            )}
+          </Button>
+          <TaskForm
+            projectId={filters.project !== 'all' ? filters.project : null}
+            onSuccess={handleTaskFormSuccess}
+            editingTask={editingTask}
+          />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditingTask(null);
-                setFormData({
-                  project_id:
-                    selectedProject !== 'all' ? selectedProject : null,
-                  title: '',
-                  description: '',
-                  status_id: statuses[0]?.id || 0,
-                  priority: 'medium',
-                  category: '',
-                  due_date: '',
-                });
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Thêm Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingTask ? 'Chỉnh sửa Task' : 'Thêm Task mới'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label htmlFor="task-title" className="mb-1">
-                    Tiêu đề *
-                  </Label>
-                  <Input
-                    id="task-title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="task-description" className="mb-1">
-                    Mô tả
-                  </Label>
-                  <Textarea
-                    id="task-description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="task-status" className="mb-1">
-                      Trạng thái *
-                    </Label>
-                    <Select
-                      value={formData.status_id.toString()}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, status_id: parseInt(value) })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statuses.map((status) => (
-                          <SelectItem
-                            key={status.id}
-                            value={status.id.toString()}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: status.color }}
-                              />
-                              {status.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="task-priority" className="mb-1">
-                      Ưu tiên
-                    </Label>
-                    <Select
-                      value={formData.priority}
-                      onValueChange={(value) =>
-                        setFormData({
-                          ...formData,
-                          priority: value as Priority,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Thấp</SelectItem>
-                        <SelectItem value="medium">Trung bình</SelectItem>
-                        <SelectItem value="high">Cao</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {selectedProject === 'all' && (
-                  <div>
-                    <Label htmlFor="task-project" className="mb-1">
-                      Project
-                    </Label>
-                    <Select
-                      value={formData.project_id?.toString() || 'none'}
-                      onValueChange={(value) =>
-                        setFormData({
-                          ...formData,
-                          project_id: value === 'none' ? null : parseInt(value),
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Không có project</SelectItem>
-                        {projects.map((project) => (
-                          <SelectItem
-                            key={project.id}
-                            value={project.id.toString()}
-                          >
-                            {project.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                >
-                  Hủy
-                </Button>
-                <Button type="submit">Lưu</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      <TaskFiltersComponent
+        projects={projects}
+        statuses={statuses}
+        categories={categories}
+        filters={filters}
+        onFiltersChange={setFilters}
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+      />
 
       <DndContext
         sensors={sensors}

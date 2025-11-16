@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { Note } from '@/lib/types';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const noteSchema = z.object({
   title: z.string().min(1).optional(),
@@ -16,9 +17,21 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth();
     const { id } = await params;
     const body = await request.json();
     const validated = noteSchema.parse(body);
+
+    // Verify note belongs to user
+    const existingNote = db
+      .prepare('SELECT id FROM notes WHERE id = ? AND user_id = ?')
+      .get(parseInt(id), user.id);
+    if (!existingNote) {
+      return NextResponse.json(
+        { error: 'Note not found' },
+        { status: 404 }
+      );
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -48,12 +61,12 @@ export async function PATCH(
     }
 
     updates.push("updated_at = datetime('now')");
-    values.push(parseInt(id));
+    values.push(parseInt(id), user.id);
 
     const stmt = db.prepare(`
       UPDATE notes 
       SET ${updates.join(', ')}
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
 
     stmt.run(...values);
@@ -84,9 +97,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth();
     const { id } = await params;
-    const stmt = db.prepare('DELETE FROM notes WHERE id = ?');
-    const result = stmt.run(parseInt(id));
+    const stmt = db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?');
+    const result = stmt.run(parseInt(id), user.id);
 
     if (result.changes === 0) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });

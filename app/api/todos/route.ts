@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     try {
       const cacheKey = `todos:${status || 'all'}:${category || 'all'}`;
       await redis.setex(cacheKey, 60, JSON.stringify(todos));
-    } catch (error) {
+    } catch {
       // Redis unavailable, continue without cache
     }
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     // Invalidate cache (fail silently if Redis is unavailable)
     try {
       await redis.del('todos:*');
-    } catch (error) {
+    } catch {
       // Redis unavailable, continue without cache
     }
 

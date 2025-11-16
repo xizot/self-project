@@ -1,61 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { Status } from '@/lib/types';
+import { Category } from '@/lib/types';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 
-const statusSchema = z.object({
+const categorySchema = z.object({
   name: z.string().min(1),
-  color: z.string().min(1),
+  color: z.string().optional(),
   position: z.number().optional(),
 });
 
-// GET all statuses
+// GET all categories
 export async function GET() {
   try {
     const user = await requireAuth();
-    const statuses = db
-      .prepare('SELECT * FROM statuses WHERE user_id = ? ORDER BY position ASC, created_at ASC')
-      .all(user.id) as Status[];
-    return NextResponse.json(statuses);
+    const categories = db
+      .prepare('SELECT * FROM categories WHERE user_id = ? ORDER BY position ASC, created_at DESC')
+      .all(user.id) as Category[];
+
+    return NextResponse.json(categories);
   } catch (error) {
-    console.error('Error fetching statuses:', error);
+    console.error('Error fetching categories:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch statuses' },
+      { error: 'Failed to fetch categories' },
       { status: 500 }
     );
   }
 }
 
-// POST create new status
+// POST create new category
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
     const body = await request.json();
-    const validated = statusSchema.parse(body);
+    const validated = categorySchema.parse(body);
 
     // Get max position for user
     const maxPos = db
-      .prepare('SELECT COALESCE(MAX(position), -1) as max_pos FROM statuses WHERE user_id = ?')
+      .prepare('SELECT COALESCE(MAX(position), -1) as max_pos FROM categories WHERE user_id = ?')
       .get(user.id) as { max_pos: number };
 
     const stmt = db.prepare(`
-      INSERT INTO statuses (user_id, name, color, position)
+      INSERT INTO categories (user_id, name, color, position)
       VALUES (?, ?, ?, ?)
     `);
 
     const result = stmt.run(
       user.id,
       validated.name,
-      validated.color,
+      validated.color || '#6366f1',
       validated.position !== undefined ? validated.position : maxPos.max_pos + 1
     );
 
-    const status = db
-      .prepare('SELECT * FROM statuses WHERE id = ?')
-      .get(result.lastInsertRowid) as Status;
+    const category = db
+      .prepare('SELECT * FROM categories WHERE id = ?')
+      .get(result.lastInsertRowid) as Category;
 
-    return NextResponse.json(status, { status: 201 });
+    return NextResponse.json(category, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -63,10 +64,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error('Error creating status:', error);
+    console.error('Error creating category:', error);
     return NextResponse.json(
-      { error: 'Failed to create status' },
+      { error: 'Failed to create category' },
       { status: 500 }
     );
   }
 }
+

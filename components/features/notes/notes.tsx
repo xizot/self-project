@@ -10,38 +10,29 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Note } from '@/lib/types';
-import { Plus, Trash2, Edit, Tag } from 'lucide-react';
+import { Trash2, Edit, Tag } from 'lucide-react';
 import { format } from 'date-fns';
+import NoteForm from '@/components/features/notes/note-form';
 
 export default function NotesComponent() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    category: '',
-    tags: '',
-  });
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchNotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterCategory]);
 
   const fetchNotes = async () => {
@@ -59,32 +50,9 @@ export default function NotesComponent() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const url = editingNote ? `/api/notes/${editingNote.id}` : '/api/notes';
-      const method = editingNote ? 'PATCH' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      if (res.ok) {
-        setOpen(false);
-        setEditingNote(null);
-        setFormData({
-          title: '',
-          content: '',
-          category: '',
-          tags: '',
-        });
-        fetchNotes();
-      }
-    } catch (error) {
-      console.error('Error saving note:', error);
-    }
+  const handleFormSuccess = () => {
+    fetchNotes();
+    setEditingNote(null);
   };
 
   const handleDelete = async (id: number) => {
@@ -102,17 +70,10 @@ export default function NotesComponent() {
 
   const handleEdit = (note: Note) => {
     setEditingNote(note);
-    setFormData({
-      title: note.title,
-      content: note.content || '',
-      category: note.category || '',
-      tags: note.tags || '',
-    });
-    setOpen(true);
   };
 
   const categories = Array.from(
-    new Set(notes.map((n) => n.category).filter(Boolean))
+    new Set(notes.map((n) => n.category).filter((cat): cat is string => Boolean(cat)))
   );
   const filteredNotes = notes.filter((note) => {
     if (searchQuery) {
@@ -134,104 +95,11 @@ export default function NotesComponent() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Ghi chú</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditingNote(null);
-                setFormData({
-                  title: '',
-                  content: '',
-                  category: '',
-                  tags: '',
-                });
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Thêm Note
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingNote ? 'Chỉnh sửa Note' : 'Thêm Note mới'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingNote
-                  ? 'Cập nhật thông tin note'
-                  : 'Tạo note mới để ghi chú'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label htmlFor="note-title" className="mb-1">
-                    Tiêu đề *
-                  </Label>
-                  <Input
-                    id="note-title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="note-content" className="mb-1">
-                    Nội dung
-                  </Label>
-                  <Textarea
-                    id="note-content"
-                    value={formData.content}
-                    onChange={(e) =>
-                      setFormData({ ...formData, content: e.target.value })
-                    }
-                    rows={10}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="note-category" className="mb-1">
-                      Danh mục
-                    </Label>
-                    <Input
-                      id="note-category"
-                      value={formData.category}
-                      onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value })
-                      }
-                      placeholder="Ví dụ: Công việc, Học tập..."
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="note-tags" className="mb-1">
-                      Tags
-                    </Label>
-                    <Input
-                      id="note-tags"
-                      value={formData.tags}
-                      onChange={(e) =>
-                        setFormData({ ...formData, tags: e.target.value })
-                      }
-                      placeholder="Ví dụ: quan trọng, cần nhớ..."
-                    />
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                >
-                  Hủy
-                </Button>
-                <Button type="submit">Lưu</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <NoteForm
+          onSuccess={handleFormSuccess}
+          editingNote={editingNote}
+          categories={categories}
+        />
       </div>
 
       <div className="flex gap-4">
@@ -241,18 +109,22 @@ export default function NotesComponent() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
         />
-        <select
+        <Select
           value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-3 py-2 border rounded-md"
+          onValueChange={setFilterCategory}
         >
-          <option value="all">Tất cả danh mục</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat || ''}>
-              {cat}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tất cả danh mục" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả danh mục</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
