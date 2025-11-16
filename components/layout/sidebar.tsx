@@ -16,6 +16,7 @@ import {
   Tag,
   Key,
   Zap,
+  Calendar,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -65,6 +66,12 @@ const navItems = [
     icon: Zap,
     tab: undefined,
     route: '/automation',
+  },
+  {
+    title: 'Cron',
+    icon: Calendar,
+    tab: undefined,
+    route: '/cron',
   },
 ];
 

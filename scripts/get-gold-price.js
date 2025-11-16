@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const puppeteer = require('puppeteer');
 
 /**
@@ -44,99 +45,138 @@ async function getGoldPrice() {
     const goldPrices = await page.evaluate(() => {
       const results = [];
 
+      // Helper function để parse giá từ text
+      const parsePrice = (text) => {
+        if (!text) return null;
+        // Loại bỏ các ký tự không phải số và dấu chấm/phẩy
+        const cleaned = text.replace(/[^\d,.]/g, '').replace(/,/g, '');
+        const price = parseFloat(cleaned);
+        return isNaN(price) ? null : price;
+      };
+
+      // Helper function để tìm index của cột
+      const findColumnIndex = (headers, keywords) => {
+        for (let i = 0; i < headers.length; i++) {
+          const header = headers[i].toLowerCase();
+          if (keywords.some(keyword => header.includes(keyword))) {
+            return i;
+          }
+        }
+        return -1;
+      };
+
       // Tìm tất cả các bảng trên trang
       const tables = document.querySelectorAll('table');
 
       if (tables.length > 0) {
-        tables.forEach((table, tableIndex) => {
-          const tableData = {
-            index: tableIndex + 1,
-            headers: [],
-            rows: [],
-          };
+        tables.forEach((table) => {
+          const headers = [];
+          const rows = [];
 
           // Lấy headers
           const headerRows = table.querySelectorAll('thead tr, tr:first-child');
           if (headerRows.length > 0) {
             headerRows[0].querySelectorAll('th, td').forEach((cell) => {
-              tableData.headers.push(cell.textContent.trim());
+              headers.push(cell.textContent.trim());
             });
           }
 
           // Lấy dữ liệu các dòng
-          const rows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
-          rows.forEach((row) => {
+          const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
+          dataRows.forEach((row) => {
             const cells = row.querySelectorAll('td, th');
             if (cells.length > 0) {
               const rowData = Array.from(cells).map((cell) => cell.textContent.trim());
-              // Chỉ lấy các dòng có dữ liệu liên quan đến giá vàng
-              if (rowData.some((text) =>
-                text.includes('Vàng') ||
-                text.includes('SJC') ||
-                text.includes('24K') ||
-                text.includes('18K') ||
-                text.includes('PNJ') ||
-                text.match(/[\d,]+\.?\d*/)
-              )) {
-                tableData.rows.push(rowData);
-              }
+              rows.push(rowData);
             }
           });
 
-          if (tableData.headers.length > 0 || tableData.rows.length > 0) {
-            results.push(tableData);
-          }
-        });
-      }
+          // Parse dữ liệu từ bảng
+          if (headers.length > 0 && rows.length > 0) {
+            // Tìm các cột quan trọng
+            const nameColIndex = findColumnIndex(headers, ['loại', 'tên', 'vàng', 'type', 'name']);
+            const buyColIndex = findColumnIndex(headers, ['mua', 'mua vào', 'buy', 'purchase', 'giá mua']);
+            const sellColIndex = findColumnIndex(headers, ['bán', 'bán ra', 'sell', 'giá bán']);
 
-      // Nếu không tìm thấy bảng, thử tìm các element có class/id liên quan
-      if (results.length === 0) {
-        const selectors = [
-          '[class*="price"]',
-          '[class*="gold"]',
-          '[id*="price"]',
-          '[id*="gold"]',
-          '[class*="table"]',
-          '.gia-vang',
-          '#gia-vang',
-        ];
+            // Nếu không tìm thấy cột, sử dụng vị trí mặc định
+            const actualNameIndex = nameColIndex >= 0 ? nameColIndex : 0;
+            const actualBuyIndex = buyColIndex >= 0 ? buyColIndex : (headers.length >= 2 ? 1 : -1);
+            const actualSellIndex = sellColIndex >= 0 ? sellColIndex : (headers.length >= 3 ? 2 : -1);
 
-        selectors.forEach((selector) => {
-          try {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach((el) => {
-              const text = el.textContent.trim();
-              if (text && text.length > 0) {
-                results.push({
-                  selector: selector,
-                  text: text,
-                });
+            rows.forEach((row) => {
+              if (row.length > 0) {
+                const goldType = row[actualNameIndex] || row[0] || 'N/A';
+
+                // Kiểm tra xem dòng này có phải là dòng giá vàng không
+                const isGoldRow = goldType && (
+                  goldType.toLowerCase().includes('vàng') ||
+                  goldType.toLowerCase().includes('sjc') ||
+                  goldType.toLowerCase().includes('24k') ||
+                  goldType.toLowerCase().includes('18k') ||
+                  goldType.toLowerCase().includes('pnj') ||
+                  goldType.match(/[\d,]+/)
+                );
+
+                if (isGoldRow) {
+                  const buyPrice = actualBuyIndex >= 0 && row[actualBuyIndex]
+                    ? parsePrice(row[actualBuyIndex])
+                    : null;
+                  const sellPrice = actualSellIndex >= 0 && row[actualSellIndex]
+                    ? parsePrice(row[actualSellIndex])
+                    : null;
+
+                  // Tính chênh lệch
+                  const difference = (buyPrice !== null && sellPrice !== null)
+                    ? (sellPrice - buyPrice)
+                    : null;
+
+                  results.push({
+                    loaiVang: goldType,
+                    giaMuaVao: buyPrice,
+                    giaBanRa: sellPrice,
+                    chenhLech: difference,
+                  });
+                }
               }
             });
-          } catch (e) {
-            // Ignore invalid selectors
           }
         });
       }
 
-      // Lấy toàn bộ text content nếu không tìm thấy cấu trúc cụ thể
+      // Nếu không tìm thấy trong bảng, thử parse từ text
       if (results.length === 0) {
         const bodyText = document.body.innerText;
         const lines = bodyText.split('\n').filter((line) => {
           const trimmed = line.trim();
           return (
             trimmed.length > 0 &&
-            (trimmed.includes('Vàng') ||
-              trimmed.includes('SJC') ||
-              trimmed.includes('24K') ||
-              trimmed.includes('18K') ||
-              trimmed.includes('PNJ') ||
+            (trimmed.toLowerCase().includes('vàng') ||
+              trimmed.toLowerCase().includes('sjc') ||
               trimmed.match(/[\d,]+\.?\d*/))
           );
         });
-        results.push({
-          type: 'text',
-          lines: lines.slice(0, 100), // Giới hạn 100 dòng đầu
+
+        // Thử parse từ các dòng text
+        lines.forEach((line, index) => {
+          const lowerLine = line.toLowerCase();
+          if (lowerLine.includes('vàng') || lowerLine.includes('sjc')) {
+            // Tìm giá trong các dòng tiếp theo
+            const nextLines = lines.slice(index + 1, index + 5);
+            const prices = nextLines
+              .map(l => parsePrice(l))
+              .filter(p => p !== null);
+
+            if (prices.length >= 2) {
+              const buyPrice = prices[0];
+              const sellPrice = prices[1];
+              results.push({
+                loaiVang: line.trim(),
+                giaMuaVao: buyPrice,
+                giaBanRa: sellPrice,
+                chenhLech: sellPrice - buyPrice,
+              });
+            }
+          }
         });
       }
 
@@ -145,27 +185,42 @@ async function getGoldPrice() {
 
     await browser.close();
 
+    // Format kết quả
+    const formattedData = goldPrices.map((item) => ({
+      loaiVang: item.loaiVang || 'N/A',
+      giaMuaVao: item.giaMuaVao !== null ? item.giaMuaVao : null,
+      giaBanRa: item.giaBanRa !== null ? item.giaBanRa : null,
+      chenhLech: item.chenhLech !== null ? item.chenhLech : null,
+    }));
+
     const result = {
       success: true,
       timestamp: new Date().toISOString(),
       source: 'https://www.pnj.com.vn/site/gia-vang',
-      data: goldPrices,
+      data: formattedData,
     };
 
-    console.log('Lấy giá vàng thành công!');
-    console.log(JSON.stringify(result, null, 2));
+    // Output JSON result to stdout (for automation worker to parse)
+    // Logs go to stderr so they don't interfere with JSON output
+    console.error('Lấy giá vàng thành công!');
+    console.log(JSON.stringify(result));
 
     return result;
   } catch (error) {
-    console.error('Lỗi khi lấy giá vàng:', error);
-    if (browser) {
-      await browser.close();
-    }
-    return {
+    const errorResult = {
       success: false,
       timestamp: new Date().toISOString(),
       error: error.message,
     };
+
+    // Output JSON result to stdout even on error
+    console.error('Lỗi khi lấy giá vàng:', error);
+    console.log(JSON.stringify(errorResult));
+
+    if (browser) {
+      await browser.close();
+    }
+    return errorResult;
   }
 }
 
