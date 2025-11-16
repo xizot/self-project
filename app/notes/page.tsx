@@ -1,4 +1,4 @@
-import NotesComponent from '@/components/notes';
+import NotesComponent from '@/components/features/notes/notes';
 
 export default function NotesPage() {
   return (

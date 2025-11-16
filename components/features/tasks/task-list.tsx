@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Task, Project, Status, Priority } from '@/lib/types';
 import { Trash2, Edit, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import TaskForm from '@/components/task-form';
+import TaskForm from '@/components/features/tasks/task-form';
 
 interface TaskListProps {
   projectId?: number | null;

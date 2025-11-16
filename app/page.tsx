@@ -4,8 +4,8 @@ import { Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import TaskList from '@/components/task-list';
-import TaskKanban from '@/components/task-kanban';
+import TaskList from '@/components/features/tasks/task-list';
+import TaskKanban from '@/components/features/tasks/task-kanban';
 import { CheckSquare, LayoutGrid } from 'lucide-react';
 
 function HomeContent() {

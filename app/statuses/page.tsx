@@ -1,4 +1,4 @@
-import StatusesManagement from '@/components/statuses-management';
+import StatusesManagement from '@/components/features/statuses/statuses-management';
 
 export default function StatusesPage() {
   return (

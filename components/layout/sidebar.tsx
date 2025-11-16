@@ -4,6 +4,11 @@ import { Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   CheckSquare,
   LayoutGrid,
   StickyNote,
@@ -75,7 +80,7 @@ function SidebarContent({ collapsed, onNavClick }: SidebarProps) {
       {/* Sidebar Header */}
       <div className="flex h-16 items-center border-b px-4">
         {!collapsed && (
-          <h2 className="text-lg font-semibold">Quản lý Cá nhân</h2>
+          <h2 className="text-lg font-semibold truncate">Quản lý Cá nhân</h2>
         )}
       </div>
 
@@ -87,22 +92,35 @@ function SidebarContent({ collapsed, onNavClick }: SidebarProps) {
             ? pathname === item.route
             : currentTab === item.tab;
 
-          return (
-            <button
-              key={item.title}
-              onClick={() => handleNavClick(item.tab || '', item.route)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full',
-                'hover:bg-accent hover:text-accent-foreground',
-                isActive && 'bg-accent text-accent-foreground',
-                collapsed && 'justify-center'
-              )}
-              title={collapsed ? item.title : undefined}
-            >
-              <Icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span>{item.title}</span>}
-            </button>
-          );
+            const button = (
+              <button
+                key={item.title}
+                onClick={() => handleNavClick(item.tab || '', item.route)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
+                    : 'hover:bg-accent hover:text-accent-foreground',
+                  collapsed && 'justify-center'
+                )}
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span>{item.title}</span>}
+              </button>
+            );
+
+          if (collapsed) {
+            return (
+              <Tooltip key={item.title}>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.title}</p>
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return button;
         })}
       </nav>
     </div>

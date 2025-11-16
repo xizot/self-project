@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Sidebar from '@/components/sidebar';
-import Header from '@/components/header';
+import Sidebar from '@/components/layout/sidebar';
+import Header from '@/components/layout/header';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface AppLayoutProps {
