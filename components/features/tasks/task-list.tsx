@@ -36,6 +36,7 @@ export default function TaskList({ projectId }: TaskListProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>({
     search: '',
@@ -142,11 +143,13 @@ export default function TaskList({ projectId }: TaskListProps) {
 
   const handleEdit = (task: Task) => {
     setEditingTask(task);
+    setTaskFormOpen(true);
   };
 
   const handleTaskFormSuccess = () => {
     fetchTasks();
     setEditingTask(null);
+    setTaskFormOpen(false);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -215,6 +218,13 @@ export default function TaskList({ projectId }: TaskListProps) {
             projectId={projectId}
             onSuccess={handleTaskFormSuccess}
             editingTask={editingTask}
+            open={taskFormOpen}
+            onOpenChange={(isOpen) => {
+              setTaskFormOpen(isOpen);
+              if (!isOpen) {
+                setEditingTask(null);
+              }
+            }}
           />
         </div>
       </div>

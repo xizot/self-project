@@ -48,55 +48,51 @@ interface NoteFormProps {
   editingNote?: Note | null;
   trigger?: React.ReactNode;
   categories?: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): NoteFormValues => ({
+  title: '',
+  content: '',
+  category: '',
+  tags: '',
+});
 
 export default function NoteForm({
   onSuccess,
-  editingNote: initialEditingNote,
+  editingNote,
   trigger,
   categories = [],
+  open,
+  onOpenChange,
 }: NoteFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState<Note | null>(
-    initialEditingNote || null
-  );
 
   const form = useForm<NoteFormValues>({
     resolver: zodResolver(noteFormSchema),
-    defaultValues: {
-      title: '',
-      content: '',
-      category: '',
-      tags: '',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   // Update form when editingNote changes
   useEffect(() => {
-    if (initialEditingNote) {
-      setEditingNote(initialEditingNote);
+    if (!open) return;
+    if (editingNote) {
       form.reset({
-        title: initialEditingNote.title,
-        content: initialEditingNote.content || '',
-        category: initialEditingNote.category || '',
-        tags: initialEditingNote.tags || '',
+        title: editingNote.title,
+        content: editingNote.content || '',
+        category: editingNote.category || '',
+        tags: editingNote.tags || '',
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingNote && open) {
-      // If initialEditingNote is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingNote, form, open]);
+  }, [editingNote, form, open]);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingNote(null);
-      form.reset();
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: NoteFormValues) => {
@@ -111,10 +107,9 @@ export default function NoteForm({
       });
 
       if (res.ok) {
-        setOpen(false);
-        setEditingNote(null);
-        form.reset();
+        form.reset(getDefaultValues());
         onSuccess?.();
+        handleDialogChange(false);
       }
     } catch (error) {
       console.error('Error saving note:', error);
@@ -122,14 +117,14 @@ export default function NoteForm({
   };
 
   const defaultTrigger = (
-    <Button onClick={() => form.reset()}>
+    <Button onClick={() => form.reset(getDefaultValues())}>
       <Plus className="mr-2 h-4 w-4" />
       Thêm Note
     </Button>
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
@@ -232,7 +227,7 @@ export default function NoteForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

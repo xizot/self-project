@@ -163,6 +163,7 @@ export default function StatusesManagement() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
+  const [statusFormOpen, setStatusFormOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
@@ -193,6 +194,7 @@ export default function StatusesManagement() {
   const handleFormSuccess = () => {
     fetchStatuses();
     setEditingStatus(null);
+    setStatusFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -213,6 +215,7 @@ export default function StatusesManagement() {
 
   const handleEdit = (status: Status) => {
     setEditingStatus(status);
+    setStatusFormOpen(true);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -279,6 +282,13 @@ export default function StatusesManagement() {
           <StatusForm
             onSuccess={handleFormSuccess}
             editingStatus={editingStatus}
+            open={statusFormOpen}
+            onOpenChange={(isOpen) => {
+              setStatusFormOpen(isOpen);
+              if (!isOpen) {
+                setEditingStatus(null);
+              }
+            }}
           />
         </div>
       </div>

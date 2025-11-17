@@ -11,6 +11,7 @@ export default function ProjectsManagement() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectFormOpen, setProjectFormOpen] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -31,6 +32,7 @@ export default function ProjectsManagement() {
   const handleFormSuccess = () => {
     fetchProjects();
     setEditingProject(null);
+    setProjectFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -48,6 +50,7 @@ export default function ProjectsManagement() {
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
+    setProjectFormOpen(true);
   };
 
   if (loading) {
@@ -66,6 +69,13 @@ export default function ProjectsManagement() {
         <ProjectForm
           onSuccess={handleFormSuccess}
           editingProject={editingProject}
+          open={projectFormOpen}
+          onOpenChange={(isOpen) => {
+            setProjectFormOpen(isOpen);
+            if (!isOpen) {
+              setEditingProject(null);
+            }
+          }}
         />
       </div>
 

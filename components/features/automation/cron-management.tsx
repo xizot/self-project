@@ -31,6 +31,7 @@ export default function CronManagement() {
   const [editingTask, setEditingTask] = useState<AutomationTask | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [groupBy, setGroupBy] = useState<'schedule' | 'status'>('schedule');
+  const [automationFormOpen, setAutomationFormOpen] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -58,6 +59,7 @@ export default function CronManagement() {
   const handleFormSuccess = () => {
     fetchTasks();
     setEditingTask(null);
+    setAutomationFormOpen(false);
   };
 
   const handleToggleEnabled = async (task: AutomationTask) => {
@@ -205,6 +207,13 @@ export default function CronManagement() {
         <AutomationForm
           onSuccess={handleFormSuccess}
           editingTask={editingTask}
+          open={automationFormOpen}
+          onOpenChange={(isOpen) => {
+            setAutomationFormOpen(isOpen);
+            if (!isOpen) {
+              setEditingTask(null);
+            }
+          }}
         />
       </div>
 
@@ -383,7 +392,10 @@ export default function CronManagement() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => setEditingTask(task)}
+                                  onClick={() => {
+                                    setEditingTask(task);
+                                    setAutomationFormOpen(true);
+                                  }}
                                   title="Chỉnh sửa"
                                 >
                                   <Edit className="h-4 w-4" />
@@ -472,7 +484,10 @@ export default function CronManagement() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 w-7 p-0"
-                                onClick={() => setEditingTask(task)}
+                                onClick={() => {
+                                  setEditingTask(task);
+                                  setAutomationFormOpen(true);
+                                }}
                                 title="Chỉnh sửa"
                               >
                                 <Edit className="h-3.5 w-3.5" />

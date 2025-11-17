@@ -49,17 +49,27 @@ interface PasswordFormProps {
   onSuccess?: () => void;
   editingPassword?: Password | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): PasswordFormValues => ({
+  app_name: '',
+  type: 'password',
+  username: '',
+  email: '',
+  password: '',
+  url: '',
+  notes: '',
+});
 
 export default function PasswordForm({
   onSuccess,
-  editingPassword: initialEditingPassword,
+  editingPassword,
   trigger,
+  open,
+  onOpenChange,
 }: PasswordFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingPassword, setEditingPassword] = useState<Password | null>(
-    initialEditingPassword || null
-  );
   const [apps, setApps] = useState<App[]>([]);
   const [newAppName, setNewAppName] = useState('');
   const [showNewAppInput, setShowNewAppInput] = useState(false);
@@ -67,15 +77,7 @@ export default function PasswordForm({
 
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
-    defaultValues: {
-      app_name: '',
-      type: 'password',
-      username: '',
-      email: '',
-      password: '',
-      url: '',
-      notes: '',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   const fetchApps = async () => {
@@ -93,26 +95,22 @@ export default function PasswordForm({
   }, []);
 
   useEffect(() => {
-    if (initialEditingPassword) {
-      setEditingPassword(initialEditingPassword);
+    if (!open) return;
+
+    if (editingPassword) {
       form.reset({
-        app_name: initialEditingPassword.app_name,
-        type: initialEditingPassword.type || 'password',
-        username: initialEditingPassword.username || '',
-        email: initialEditingPassword.email || '',
-        password: initialEditingPassword.password,
-        url: initialEditingPassword.url || '',
-        notes: initialEditingPassword.notes || '',
+        app_name: editingPassword.app_name,
+        type: editingPassword.type || 'password',
+        username: editingPassword.username || '',
+        email: editingPassword.email || '',
+        password: editingPassword.password,
+        url: editingPassword.url || '',
+        notes: editingPassword.notes || '',
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingPassword && open) {
-      // If initialEditingPassword is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingPassword, form, open]);
+  }, [editingPassword, form, open]);
 
   const handleCreateNewApp = async () => {
     if (!newAppName.trim()) return;
@@ -139,23 +137,14 @@ export default function PasswordForm({
     }
   };
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingPassword(null);
       setShowNewAppInput(false);
       setNewAppName('');
       setShowPassword(false);
-      form.reset({
-        app_name: '',
-        type: 'password',
-        username: '',
-        email: '',
-        password: '',
-        url: '',
-        notes: '',
-      });
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: PasswordFormValues) => {
@@ -182,7 +171,7 @@ export default function PasswordForm({
 
       if (res.ok) {
         onSuccess?.();
-        handleOpenChange(false);
+        handleDialogChange(false);
       } else {
         const data = await res.json();
         alert(data.error || 'Không thể lưu mật khẩu');
@@ -193,7 +182,7 @@ export default function PasswordForm({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button onClick={() => form.reset()}>
@@ -490,7 +479,7 @@ export default function PasswordForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

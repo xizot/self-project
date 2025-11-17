@@ -39,52 +39,48 @@ interface ProjectFormProps {
   onSuccess?: () => void;
   editingProject?: Project | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): ProjectFormValues => ({
+  name: '',
+  description: '',
+  color: '#6366f1',
+});
 
 export default function ProjectForm({
   onSuccess,
-  editingProject: initialEditingProject,
+  editingProject,
   trigger,
+  open,
+  onOpenChange,
 }: ProjectFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(
-    initialEditingProject || null
-  );
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      color: '#6366f1',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   // Update form when editingProject changes
   useEffect(() => {
-    if (initialEditingProject) {
-      setEditingProject(initialEditingProject);
+    if (!open) return;
+    if (editingProject) {
       form.reset({
-        name: initialEditingProject.name,
-        description: initialEditingProject.description || '',
-        color: initialEditingProject.color || '#6366f1',
+        name: editingProject.name,
+        description: editingProject.description || '',
+        color: editingProject.color || '#6366f1',
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingProject && open) {
-      // If initialEditingProject is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingProject, form, open]);
+  }, [editingProject, form, open]);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingProject(null);
-      form.reset();
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: ProjectFormValues) => {
@@ -101,10 +97,9 @@ export default function ProjectForm({
       });
 
       if (res.ok) {
-        setOpen(false);
-        setEditingProject(null);
-        form.reset();
+        form.reset(getDefaultValues());
         onSuccess?.();
+        handleDialogChange(false);
       }
     } catch (error) {
       console.error('Error saving project:', error);
@@ -112,14 +107,14 @@ export default function ProjectForm({
   };
 
   const defaultTrigger = (
-    <Button onClick={() => form.reset()}>
+    <Button onClick={() => form.reset(getDefaultValues())}>
       <Plus className="mr-2 h-4 w-4" />
       Thêm Project
     </Button>
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
@@ -204,7 +199,7 @@ export default function ProjectForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

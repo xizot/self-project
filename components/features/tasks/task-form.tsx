@@ -39,6 +39,8 @@ interface TaskFormProps {
   onSuccess?: () => void;
   editingTask?: Task | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 const taskFormSchema = z.object({
@@ -53,31 +55,31 @@ const taskFormSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
 
+const getDefaultValues = (projectId?: number | null): TaskFormValues => ({
+  project_id: projectId || null,
+  title: '',
+  description: '',
+  status_id: 0,
+  priority: 'medium',
+  category: '',
+  due_date: '',
+});
+
 export default function TaskForm({
   projectId,
   onSuccess,
-  editingTask: initialEditingTask,
+  editingTask,
   trigger,
+  open,
+  onOpenChange,
 }: TaskFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(
-    initialEditingTask || null
-  );
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
-    defaultValues: {
-      project_id: projectId || null,
-      title: '',
-      description: '',
-      status_id: 0,
-      priority: 'medium',
-      category: '',
-      due_date: '',
-    },
+    defaultValues: getDefaultValues(projectId),
   });
 
   const fetchStatuses = async () => {
@@ -125,41 +127,26 @@ export default function TaskForm({
       });
 
       if (res.ok) {
-        setOpen(false);
-        setEditingTask(null);
         form.reset({
-          project_id: projectId || null,
-          title: '',
-          description: '',
+          ...getDefaultValues(projectId),
           status_id: statuses[0]?.id || 0,
-          priority: 'medium',
-          category: '',
-          due_date: '',
         });
         onSuccess?.();
+        handleDialogChange(false);
       }
     } catch (error) {
       console.error('Error saving task:', error);
     }
   };
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingTask(null);
       form.reset({
-        project_id: projectId || null,
-        title: '',
-        description: '',
+        ...getDefaultValues(projectId),
         status_id: statuses[0]?.id || 0,
-        priority: 'medium',
-        category: '',
-        due_date: '',
       });
-      if (onSuccess) {
-        setTimeout(() => onSuccess(), 0);
-      }
     }
+    onOpenChange(isOpen);
   };
 
   useEffect(() => {
@@ -176,51 +163,35 @@ export default function TaskForm({
   }, [statuses, form]);
 
   useEffect(() => {
-    if (initialEditingTask) {
-      const resetForm = () => {
-        setEditingTask(initialEditingTask);
-        form.reset({
-          project_id: initialEditingTask.project_id || projectId || null,
-          title: initialEditingTask.title,
-          description: initialEditingTask.description || '',
-          status_id: initialEditingTask.status_id,
-          priority: initialEditingTask.priority,
-          category: initialEditingTask.category || '',
-          due_date: initialEditingTask.due_date
-            ? initialEditingTask.due_date
-            : '',
-        });
-        // Only open dialog if it's currently closed
-        if (!open) {
-          setOpen(true);
-        }
-      };
-      resetForm();
+    if (!open) return;
+    if (editingTask) {
+      form.reset({
+        project_id: editingTask.project_id || projectId || null,
+        title: editingTask.title,
+        description: editingTask.description || '',
+        status_id: editingTask.status_id,
+        priority: editingTask.priority,
+        category: editingTask.category || '',
+        due_date: editingTask.due_date ? editingTask.due_date : '',
+      });
     } else {
-      setEditingTask(null);
-      // If initialEditingTask is cleared but dialog is still open, close it
-      if (open) {
-        setOpen(false);
-      }
+      form.reset({
+        ...getDefaultValues(projectId),
+        status_id: statuses[0]?.id || 0,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialEditingTask, projectId, open]);
+  }, [editingTask, projectId, open, statuses]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button
             onClick={() => {
-              setEditingTask(null);
               form.reset({
-                project_id: projectId || null,
-                title: '',
-                description: '',
+                ...getDefaultValues(projectId),
                 status_id: statuses[0]?.id || 0,
-                priority: 'medium',
-                category: '',
-                due_date: '',
               });
             }}
           >
@@ -464,7 +435,7 @@ export default function TaskForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

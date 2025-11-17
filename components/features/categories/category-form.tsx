@@ -37,50 +37,46 @@ interface CategoryFormProps {
   onSuccess?: () => void;
   editingCategory?: Category | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): CategoryFormValues => ({
+  name: '',
+  color: '#6366f1',
+});
 
 export default function CategoryForm({
   onSuccess,
-  editingCategory: initialEditingCategory,
+  editingCategory,
   trigger,
+  open,
+  onOpenChange,
 }: CategoryFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(
-    initialEditingCategory || null
-  );
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
-    defaultValues: {
-      name: '',
-      color: '#6366f1',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   // Update form when editingCategory changes
   useEffect(() => {
-    if (initialEditingCategory) {
-      setEditingCategory(initialEditingCategory);
+    if (!open) return;
+    if (editingCategory) {
       form.reset({
-        name: initialEditingCategory.name,
-        color: initialEditingCategory.color,
+        name: editingCategory.name,
+        color: editingCategory.color,
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingCategory && open) {
-      // If initialEditingCategory is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingCategory, form, open]);
+  }, [editingCategory, form, open]);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingCategory(null);
-      form.reset();
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: CategoryFormValues) => {
@@ -97,10 +93,9 @@ export default function CategoryForm({
       });
 
       if (res.ok) {
-        setOpen(false);
-        setEditingCategory(null);
-        form.reset();
+        form.reset(getDefaultValues());
         onSuccess?.();
+        handleDialogChange(false);
       }
     } catch (error) {
       console.error('Error saving category:', error);
@@ -108,14 +103,14 @@ export default function CategoryForm({
   };
 
   const defaultTrigger = (
-    <Button onClick={() => form.reset()}>
+    <Button onClick={() => form.reset(getDefaultValues())}>
       <Plus className="mr-2 h-4 w-4" />
       Thêm Danh mục
     </Button>
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
@@ -183,7 +178,7 @@ export default function CategoryForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

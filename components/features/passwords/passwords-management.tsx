@@ -57,6 +57,7 @@ export default function PasswordsManagement() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<number>>(
     new Set()
   );
+  const [passwordFormOpen, setPasswordFormOpen] = useState(false);
 
   useEffect(() => {
     fetchPasswords();
@@ -85,6 +86,7 @@ export default function PasswordsManagement() {
   const handleFormSuccess = () => {
     fetchPasswords();
     setEditingPassword(null);
+    setPasswordFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -102,6 +104,7 @@ export default function PasswordsManagement() {
 
   const handleEdit = (password: Password) => {
     setEditingPassword(password);
+    setPasswordFormOpen(true);
   };
 
   const handleCopy = async (text: string, type: string) => {
@@ -148,6 +151,13 @@ export default function PasswordsManagement() {
         <PasswordForm
           onSuccess={handleFormSuccess}
           editingPassword={editingPassword}
+          open={passwordFormOpen}
+          onOpenChange={(isOpen) => {
+            setPasswordFormOpen(isOpen);
+            if (!isOpen) {
+              setEditingPassword(null);
+            }
+          }}
         />
       </div>
 

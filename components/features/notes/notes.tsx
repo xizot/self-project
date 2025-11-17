@@ -27,6 +27,7 @@ export default function NotesComponent() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [noteFormOpen, setNoteFormOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -53,6 +54,7 @@ export default function NotesComponent() {
   const handleFormSuccess = () => {
     fetchNotes();
     setEditingNote(null);
+    setNoteFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -70,6 +72,7 @@ export default function NotesComponent() {
 
   const handleEdit = (note: Note) => {
     setEditingNote(note);
+    setNoteFormOpen(true);
   };
 
   const categories = Array.from(
@@ -99,6 +102,13 @@ export default function NotesComponent() {
           onSuccess={handleFormSuccess}
           editingNote={editingNote}
           categories={categories}
+          open={noteFormOpen}
+          onOpenChange={(isOpen) => {
+            setNoteFormOpen(isOpen);
+            if (!isOpen) {
+              setEditingNote(null);
+            }
+          }}
         />
       </div>
 

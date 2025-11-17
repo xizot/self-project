@@ -52,17 +52,28 @@ interface AutomationFormProps {
   onSuccess?: () => void;
   editingTask?: AutomationTask | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): AutomationFormValues => ({
+  name: '',
+  description: '',
+  type: 'http_request',
+  config: '',
+  schedule: '1h',
+  enabled: true,
+  webhook_id: null,
+  credential_id: null,
+});
 
 export default function AutomationForm({
   onSuccess,
-  editingTask: initialEditingTask,
+  editingTask,
   trigger,
+  open,
+  onOpenChange,
 }: AutomationFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<AutomationTask | null>(
-    initialEditingTask || null
-  );
   const [scripts, setScripts] = useState<AutomationScript[]>([]);
   const [selectedScriptId, setSelectedScriptId] = useState<string>('');
   const [webhooks, setWebhooks] = useState<Password[]>([]);
@@ -70,16 +81,7 @@ export default function AutomationForm({
 
   const form = useForm<AutomationFormValues>({
     resolver: zodResolver(automationFormSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      type: 'http_request',
-      config: '',
-      schedule: '1h',
-      enabled: true,
-      webhook_id: null,
-      credential_id: null,
-    },
+    defaultValues: getDefaultValues(),
   });
 
   useEffect(() => {
@@ -125,86 +127,69 @@ export default function AutomationForm({
   };
 
   useEffect(() => {
-    if (initialEditingTask) {
-      setEditingTask(initialEditingTask);
-      try {
-        // If it's a script type, try to find the script by path in config
-        let scriptId = '';
-        if (initialEditingTask.type === 'script') {
-          try {
-            const config = JSON.parse(initialEditingTask.config);
-            const matchingScript = scripts.find((s) => s.path === config.path);
-            if (matchingScript) {
-              scriptId = matchingScript.id.toString();
-            }
-          } catch {
-            // Config might not be JSON, check if it's just a path
-            const matchingScript = scripts.find(
-              (s) => s.path === initialEditingTask.config
-            );
-            if (matchingScript) {
-              scriptId = matchingScript.id.toString();
-            }
-          }
-        }
-        setSelectedScriptId(scriptId);
-        
-        // Parse config to extract credential_id if exists
-        let credentialId = null;
+    if (!open) return;
+    if (!editingTask) {
+      setSelectedScriptId('');
+      form.reset(getDefaultValues());
+      return;
+    }
+
+    try {
+      let scriptId = '';
+      if (editingTask.type === 'script') {
         try {
-          const config = JSON.parse(initialEditingTask.config);
-          if (config.credential_id) {
-            credentialId = config.credential_id;
+          const config = JSON.parse(editingTask.config);
+          const matchingScript = scripts.find((s) => s.path === config.path);
+          if (matchingScript) {
+            scriptId = matchingScript.id.toString();
           }
         } catch {
-          // Config is not JSON, no credential_id
+          const matchingScript = scripts.find((s) => s.path === editingTask.config);
+          if (matchingScript) {
+            scriptId = matchingScript.id.toString();
+          }
         }
-        
-        form.reset({
-          name: initialEditingTask.name,
-          description: initialEditingTask.description || '',
-          type: initialEditingTask.type as 'http_request' | 'script',
-          config: initialEditingTask.config,
-          schedule: initialEditingTask.schedule,
-          enabled: initialEditingTask.enabled === 1,
-          webhook_id: initialEditingTask.webhook_id || null,
-          credential_id: credentialId,
-        });
-        // Only open dialog if it's currently closed
-        if (!open) {
-          setOpen(true);
-        }
-      } catch (error) {
-        console.error('Error parsing task config:', error);
       }
-    } else if (!initialEditingTask && open) {
-      // If initialEditingTask is cleared but dialog is still open, close it
-      setOpen(false);
-    }
-  }, [initialEditingTask, form, scripts, open]);
+      setSelectedScriptId(scriptId);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
-    if (isOpen) {
-      // Reload scripts, webhooks, and credentials when opening dialog
-      fetchScripts();
-      fetchWebhooks();
-      fetchCredentials();
-    }
-    if (!isOpen) {
-      setEditingTask(null);
-      setSelectedScriptId('');
+      let credentialId = null;
+      try {
+        const config = JSON.parse(editingTask.config);
+        if (config.credential_id) {
+          credentialId = config.credential_id;
+        }
+      } catch {
+        // ignore
+      }
+
       form.reset({
-        name: '',
-        description: '',
-        type: 'http_request',
-        config: '',
-        schedule: '1h',
-        enabled: true,
-        webhook_id: null,
-        credential_id: null,
+        name: editingTask.name,
+        description: editingTask.description || '',
+        type: editingTask.type as 'http_request' | 'script',
+        config: editingTask.config,
+        schedule: editingTask.schedule,
+        enabled: editingTask.enabled === 1,
+        webhook_id: editingTask.webhook_id || null,
+        credential_id: credentialId,
       });
+    } catch (error) {
+      console.error('Error parsing task config:', error);
     }
+  }, [editingTask, form, scripts, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetchScripts();
+    fetchWebhooks();
+    fetchCredentials();
+  }, [open]);
+
+  const handleDialogChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setSelectedScriptId('');
+      form.reset(getDefaultValues());
+    }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: AutomationFormValues) => {
@@ -252,7 +237,7 @@ export default function AutomationForm({
 
       if (res.ok) {
         onSuccess?.();
-        handleOpenChange(false);
+        handleDialogChange(false);
       } else {
         const data = await res.json();
         alert(data.error || 'Không thể lưu automation task');
@@ -263,7 +248,7 @@ export default function AutomationForm({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button onClick={() => form.reset()}>
@@ -592,7 +577,7 @@ export default function AutomationForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

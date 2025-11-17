@@ -33,6 +33,7 @@ export default function AutomationManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [scripts, setScripts] = useState<AutomationScript[]>([]);
   const [showScriptsDialog, setShowScriptsDialog] = useState(false);
+  const [automationFormOpen, setAutomationFormOpen] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -64,6 +65,7 @@ export default function AutomationManagement() {
   const handleFormSuccess = () => {
     fetchTasks();
     setEditingTask(null);
+    setAutomationFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -81,6 +83,7 @@ export default function AutomationManagement() {
 
   const handleEdit = (task: AutomationTask) => {
     setEditingTask(task);
+    setAutomationFormOpen(true);
   };
 
   const handleToggleEnabled = async (task: AutomationTask) => {
@@ -201,6 +204,13 @@ export default function AutomationManagement() {
           <AutomationForm
             onSuccess={handleFormSuccess}
             editingTask={editingTask}
+            open={automationFormOpen}
+            onOpenChange={(isOpen) => {
+              setAutomationFormOpen(isOpen);
+              if (!isOpen) {
+                setEditingTask(null);
+              }
+            }}
           />
         </div>
       </div>
@@ -336,6 +346,7 @@ function ScriptsList({
   onRefresh: () => void;
 }) {
   const [editingScript, setEditingScript] = useState<AutomationScript | null>(null);
+  const [scriptFormOpen, setScriptFormOpen] = useState(false);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Bạn có chắc muốn xóa script này?')) return;
@@ -359,8 +370,16 @@ function ScriptsList({
           onSuccess={() => {
             onRefresh();
             setEditingScript(null);
+            setScriptFormOpen(false);
           }}
           editingScript={editingScript}
+          open={scriptFormOpen}
+          onOpenChange={(isOpen) => {
+            setScriptFormOpen(isOpen);
+            if (!isOpen) {
+              setEditingScript(null);
+            }
+          }}
         />
       </div>
       <div className="space-y-2">
@@ -389,7 +408,10 @@ function ScriptsList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setEditingScript(script)}
+                  onClick={() => {
+                    setEditingScript(script);
+                    setScriptFormOpen(true);
+                  }}
                 >
                   <Edit className="h-4 w-4" />
                 </Button>

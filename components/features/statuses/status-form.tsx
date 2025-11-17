@@ -37,50 +37,46 @@ interface StatusFormProps {
   onSuccess?: () => void;
   editingStatus?: Status | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): StatusFormValues => ({
+  name: '',
+  color: '#3b82f6',
+});
 
 export default function StatusForm({
   onSuccess,
-  editingStatus: initialEditingStatus,
+  editingStatus,
   trigger,
+  open,
+  onOpenChange,
 }: StatusFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingStatus, setEditingStatus] = useState<Status | null>(
-    initialEditingStatus || null
-  );
 
   const form = useForm<StatusFormValues>({
     resolver: zodResolver(statusFormSchema),
-    defaultValues: {
-      name: '',
-      color: '#3b82f6',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   // Update form when editingStatus changes
   useEffect(() => {
-    if (initialEditingStatus) {
-      setEditingStatus(initialEditingStatus);
+    if (!open) return;
+    if (editingStatus) {
       form.reset({
-        name: initialEditingStatus.name,
-        color: initialEditingStatus.color,
+        name: editingStatus.name,
+        color: editingStatus.color,
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingStatus && open) {
-      // If initialEditingStatus is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingStatus, form, open]);
+  }, [editingStatus, form, open]);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingStatus(null);
-      form.reset();
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: StatusFormValues) => {
@@ -97,10 +93,9 @@ export default function StatusForm({
       });
 
       if (res.ok) {
-        setOpen(false);
-        setEditingStatus(null);
-        form.reset();
+        form.reset(getDefaultValues());
         onSuccess?.();
+        handleDialogChange(false);
       }
     } catch (error) {
       console.error('Error saving status:', error);
@@ -108,14 +103,14 @@ export default function StatusForm({
   };
 
   const defaultTrigger = (
-    <Button onClick={() => form.reset()}>
+    <Button onClick={() => form.reset(getDefaultValues())}>
       <Plus className="mr-2 h-4 w-4" />
       Thêm Trạng thái
     </Button>
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
@@ -183,7 +178,7 @@ export default function StatusForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>

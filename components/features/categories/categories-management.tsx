@@ -162,6 +162,7 @@ export default function CategoriesManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryFormOpen, setCategoryFormOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
@@ -192,6 +193,7 @@ export default function CategoriesManagement() {
   const handleFormSuccess = () => {
     fetchCategories();
     setEditingCategory(null);
+    setCategoryFormOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -212,6 +214,7 @@ export default function CategoriesManagement() {
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
+    setCategoryFormOpen(true);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -280,6 +283,13 @@ export default function CategoriesManagement() {
           <CategoryForm
             onSuccess={handleFormSuccess}
             editingCategory={editingCategory}
+            open={categoryFormOpen}
+            onOpenChange={(isOpen) => {
+              setCategoryFormOpen(isOpen);
+              if (!isOpen) {
+                setEditingCategory(null);
+              }
+            }}
           />
         </div>
       </div>

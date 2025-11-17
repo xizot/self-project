@@ -215,6 +215,7 @@ export default function TaskKanban() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>({
@@ -330,11 +331,13 @@ export default function TaskKanban() {
 
   const handleEdit = (task: Task) => {
     setEditingTask(task);
+    setTaskFormOpen(true);
   };
 
   const handleTaskFormSuccess = () => {
     fetchTasks();
     setEditingTask(null);
+    setTaskFormOpen(false);
   };
 
   const hasActiveFilters =
@@ -495,6 +498,13 @@ export default function TaskKanban() {
             projectId={filters.project !== 'all' ? filters.project : null}
             onSuccess={handleTaskFormSuccess}
             editingTask={editingTask}
+            open={taskFormOpen}
+            onOpenChange={(isOpen) => {
+              setTaskFormOpen(isOpen);
+              if (!isOpen) {
+                setEditingTask(null);
+              }
+            }}
           />
         </div>
       </div>

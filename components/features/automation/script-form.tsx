@@ -39,55 +39,47 @@ interface ScriptFormProps {
   onSuccess?: () => void;
   editingScript?: AutomationScript | null;
   trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
+
+const getDefaultValues = (): ScriptFormValues => ({
+  name: '',
+  description: '',
+  path: '',
+});
 
 export default function ScriptForm({
   onSuccess,
-  editingScript: initialEditingScript,
+  editingScript,
   trigger,
+  open,
+  onOpenChange,
 }: ScriptFormProps) {
-  const [open, setOpen] = useState(false);
-  const [editingScript, setEditingScript] = useState<AutomationScript | null>(
-    initialEditingScript || null
-  );
 
   const form = useForm<ScriptFormValues>({
     resolver: zodResolver(scriptFormSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      path: '',
-    },
+    defaultValues: getDefaultValues(),
   });
 
   useEffect(() => {
-    if (initialEditingScript) {
-      setEditingScript(initialEditingScript);
+    if (!open) return;
+    if (editingScript) {
       form.reset({
-        name: initialEditingScript.name,
-        description: initialEditingScript.description || '',
-        path: initialEditingScript.path,
+        name: editingScript.name,
+        description: editingScript.description || '',
+        path: editingScript.path,
       });
-      // Only open dialog if it's currently closed
-      if (!open) {
-        setOpen(true);
-      }
-    } else if (!initialEditingScript && open) {
-      // If initialEditingScript is cleared but dialog is still open, close it
-      setOpen(false);
+    } else {
+      form.reset(getDefaultValues());
     }
-  }, [initialEditingScript, form, open]);
+  }, [editingScript, form, open]);
 
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEditingScript(null);
-      form.reset({
-        name: '',
-        description: '',
-        path: '',
-      });
+      form.reset(getDefaultValues());
     }
+    onOpenChange(isOpen);
   };
 
   const handleSubmit = async (values: ScriptFormValues) => {
@@ -105,7 +97,7 @@ export default function ScriptForm({
 
       if (res.ok) {
         onSuccess?.();
-        handleOpenChange(false);
+        handleDialogChange(false);
       } else {
         const data = await res.json();
         alert(data.error || 'Không thể lưu script');
@@ -116,7 +108,7 @@ export default function ScriptForm({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button variant="outline" size="sm" onClick={() => form.reset()}>
@@ -197,7 +189,7 @@ export default function ScriptForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Hủy
               </Button>
