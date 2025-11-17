@@ -104,9 +104,15 @@ export default function PasswordForm({
         url: initialEditingPassword.url || '',
         notes: initialEditingPassword.notes || '',
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingPassword && open) {
+      // If initialEditingPassword is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingPassword, form]);
+  }, [initialEditingPassword, form, open]);
 
   const handleCreateNewApp = async () => {
     if (!newAppName.trim()) return;

@@ -65,9 +65,15 @@ export default function CategoryForm({
         name: initialEditingCategory.name,
         color: initialEditingCategory.color,
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingCategory && open) {
+      // If initialEditingCategory is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingCategory, form]);
+  }, [initialEditingCategory, form, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

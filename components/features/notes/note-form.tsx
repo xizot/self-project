@@ -81,9 +81,15 @@ export default function NoteForm({
         category: initialEditingNote.category || '',
         tags: initialEditingNote.tags || '',
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingNote && open) {
+      // If initialEditingNote is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingNote, form]);
+  }, [initialEditingNote, form, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

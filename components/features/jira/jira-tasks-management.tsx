@@ -40,7 +40,9 @@ import {
   ArrowUp,
   ArrowDown,
   Filter,
+  BarChart3,
 } from 'lucide-react';
+import JiraDashboard from './jira-dashboard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import {
@@ -253,8 +255,8 @@ function KanbanView({ tasks }: KanbanViewProps) {
     const bIsToDo = bLower.includes('to do') || bLower.includes('todo');
 
     if (aIsToDo && !bIsToDo) return -1; // a comes first
-    if (!aIsToDo && bIsToDo) return 1;  // b comes first
-    if (aIsToDo && bIsToDo) return 0;   // both are "To Do", keep order
+    if (!aIsToDo && bIsToDo) return 1; // b comes first
+    if (aIsToDo && bIsToDo) return 0; // both are "To Do", keep order
 
     // Neither is "To Do", sort alphabetically
     return a.localeCompare(b);
@@ -348,7 +350,7 @@ export default function JiraTasksManagement() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
-  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [view, setView] = useState<'list' | 'kanban' | 'dashboard'>('list');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -368,7 +370,11 @@ export default function JiraTasksManagement() {
     fetchCredentials();
     // Get view from URL params
     const viewParam = searchParams.get('view') || 'list';
-    if (viewParam === 'kanban' || viewParam === 'list') {
+    if (
+      viewParam === 'kanban' ||
+      viewParam === 'list' ||
+      viewParam === 'dashboard'
+    ) {
       setView(viewParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -386,7 +392,12 @@ export default function JiraTasksManagement() {
   }, [selectedCredentialId]);
 
   const handleViewChange = (newView: string) => {
-    const viewValue = newView === 'kanban' ? 'kanban' : 'list';
+    const viewValue =
+      newView === 'kanban'
+        ? 'kanban'
+        : newView === 'dashboard'
+          ? 'dashboard'
+          : 'list';
     setView(viewValue);
     router.push(`/jira?view=${viewValue}`, { scroll: false });
   };
@@ -642,6 +653,10 @@ export default function JiraTasksManagement() {
         )}
         <Tabs value={view} onValueChange={handleViewChange}>
           <TabsList>
+            <TabsTrigger value="dashboard">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Dashboard
+            </TabsTrigger>
             <TabsTrigger value="list">
               <CheckSquare className="h-4 w-4 mr-2" />
               List
@@ -688,7 +703,12 @@ export default function JiraTasksManagement() {
 
       {selectedCredentialId && (
         <>
-          {loading && tasks.length === 0 ? (
+          {view === 'dashboard' ? (
+            <JiraDashboard
+              selectedCredentialId={selectedCredentialId}
+              credentials={credentials}
+            />
+          ) : loading && tasks.length === 0 ? (
             <div className="text-center py-12">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
               <p className="text-muted-foreground">Đang tải tasks...</p>

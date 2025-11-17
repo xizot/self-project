@@ -65,9 +65,15 @@ export default function StatusForm({
         name: initialEditingStatus.name,
         color: initialEditingStatus.color,
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingStatus && open) {
+      // If initialEditingStatus is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingStatus, form]);
+  }, [initialEditingStatus, form, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

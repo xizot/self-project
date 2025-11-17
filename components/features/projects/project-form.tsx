@@ -69,9 +69,15 @@ export default function ProjectForm({
         description: initialEditingProject.description || '',
         color: initialEditingProject.color || '#6366f1',
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingProject && open) {
+      // If initialEditingProject is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingProject, form]);
+  }, [initialEditingProject, form, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

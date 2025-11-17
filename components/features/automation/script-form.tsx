@@ -68,9 +68,15 @@ export default function ScriptForm({
         description: initialEditingScript.description || '',
         path: initialEditingScript.path,
       });
-      setOpen(true);
+      // Only open dialog if it's currently closed
+      if (!open) {
+        setOpen(true);
+      }
+    } else if (!initialEditingScript && open) {
+      // If initialEditingScript is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingScript, form]);
+  }, [initialEditingScript, form, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

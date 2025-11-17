@@ -170,12 +170,18 @@ export default function AutomationForm({
           webhook_id: initialEditingTask.webhook_id || null,
           credential_id: credentialId,
         });
-        setOpen(true);
+        // Only open dialog if it's currently closed
+        if (!open) {
+          setOpen(true);
+        }
       } catch (error) {
         console.error('Error parsing task config:', error);
       }
+    } else if (!initialEditingTask && open) {
+      // If initialEditingTask is cleared but dialog is still open, close it
+      setOpen(false);
     }
-  }, [initialEditingTask, form, scripts]);
+  }, [initialEditingTask, form, scripts, open]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

@@ -190,14 +190,21 @@ export default function TaskForm({
             ? initialEditingTask.due_date
             : '',
         });
-        setOpen(true);
+        // Only open dialog if it's currently closed
+        if (!open) {
+          setOpen(true);
+        }
       };
       resetForm();
     } else {
       setEditingTask(null);
+      // If initialEditingTask is cleared but dialog is still open, close it
+      if (open) {
+        setOpen(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialEditingTask, projectId]);
+  }, [initialEditingTask, projectId, open]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -18,6 +18,7 @@ import {
   Zap,
   Calendar,
   GitBranch,
+  Code,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -79,6 +80,12 @@ const navItems = [
     icon: GitBranch,
     tab: undefined,
     route: '/jira',
+  },
+  {
+    title: 'Formatter',
+    icon: Code,
+    tab: undefined,
+    route: '/formatter',
   },
 ];
 
