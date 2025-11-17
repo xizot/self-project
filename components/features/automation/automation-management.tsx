@@ -219,7 +219,7 @@ export default function AutomationManagement() {
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredTasks.map((task) => (
-          <Card key={task.id} className="hover:shadow-md transition-shadow">
+          <Card key={task.id} className="hover:shadow-md transition-shadow py-1 gap-2">
             <CardHeader className="pb-1.5 pt-2 px-3">
               <div className="flex justify-between items-center">
                 <div className="flex-1 min-w-0">

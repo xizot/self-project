@@ -34,6 +34,13 @@ export default function CronManagement() {
 
   useEffect(() => {
     fetchTasks();
+    
+    // Auto-refresh every 5 seconds to update "next run" times
+    const interval = setInterval(() => {
+      fetchTasks();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchTasks = async () => {

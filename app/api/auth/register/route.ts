@@ -57,6 +57,13 @@ export async function POST(request: NextRequest) {
         (${userId}, 'Học tập', '#f59e0b', 2);
     `);
 
+    // Seed default automation scripts for new user
+    db.exec(`
+      INSERT INTO automation_scripts (user_id, name, description, path, created_at, updated_at) VALUES
+        (${userId}, 'Lấy giá vàng PNJ', 'Script tự động lấy giá vàng từ trang PNJ (https://www.pnj.com.vn/site/gia-vang)', 'scripts/get-gold-price.js', datetime('now'), datetime('now')),
+        (${userId}, 'Lấy Jira Tasks', 'Script tự động lấy các task được assign cho bạn trên Jira. Cần cấu hình credentials (Jira API token) trong Quản lý Mật khẩu.', 'scripts/get-jira-tasks.js', datetime('now'), datetime('now'));
+    `);
+
     // Generate token
     const token = generateToken(userId);
 

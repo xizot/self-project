@@ -37,7 +37,10 @@ const passwordFormSchema = z.object({
   app_name: z.string().min(1, 'Tên ứng dụng là bắt buộc'),
   type: z.enum(['password', 'webhook', 'api_key', 'token', 'other']).optional(),
   username: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
   password: z.string().min(1, 'Mật khẩu là bắt buộc'),
+  url: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 type PasswordFormValues = z.infer<typeof passwordFormSchema>;
@@ -68,7 +71,10 @@ export default function PasswordForm({
       app_name: '',
       type: 'password',
       username: '',
+      email: '',
       password: '',
+      url: '',
+      notes: '',
     },
   });
 
@@ -93,7 +99,10 @@ export default function PasswordForm({
         app_name: initialEditingPassword.app_name,
         type: initialEditingPassword.type || 'password',
         username: initialEditingPassword.username || '',
+        email: initialEditingPassword.email || '',
         password: initialEditingPassword.password,
+        url: initialEditingPassword.url || '',
+        notes: initialEditingPassword.notes || '',
       });
       setOpen(true);
     }
@@ -135,7 +144,10 @@ export default function PasswordForm({
         app_name: '',
         type: 'password',
         username: '',
+        email: '',
         password: '',
+        url: '',
+        notes: '',
       });
     }
   };
@@ -147,10 +159,13 @@ export default function PasswordForm({
         : '/api/passwords';
       const method = editingPassword ? 'PATCH' : 'POST';
 
-      // For webhook and api_key, username can be used as a name/identifier
+      // Prepare submit data with all fields
       const submitData = {
         ...values,
         username: values.username || null,
+        email: values.email || null,
+        url: values.url || null,
+        notes: values.notes || null,
       };
 
       const res = await fetch(url, {
@@ -391,6 +406,74 @@ export default function PasswordForm({
                           )}
                         </Button>
                       </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => {
+                  const currentType = form.watch('type') || 'password';
+                  const showEmail = currentType === 'api_key' || currentType === 'token' || currentType === 'password';
+
+                  if (!showEmail) return <></>;
+
+                  return (
+                    <FormItem>
+                      <FormLabel className="mb-1">Email (tùy chọn)</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ''}
+                          type="email"
+                          placeholder="Email đăng nhập (ví dụ: user@example.com)"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      {currentType === 'api_key' && (
+                        <p className="text-xs text-muted-foreground">
+                          Email Atlassian (cho Jira API token) hoặc email đăng nhập
+                        </p>
+                      )}
+                    </FormItem>
+                  );
+                }}
+              />
+              <FormField
+                control={form.control}
+                name="url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1">URL (tùy chọn)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ''}
+                        type="url"
+                        placeholder="https://example.com hoặc https://your-domain.atlassian.net"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      URL của ứng dụng hoặc service (ví dụ: Jira instance URL cho Jira API token)
+                    </p>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="mb-1">Ghi chú (tùy chọn)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ''}
+                        placeholder="Ghi chú thêm về mật khẩu này..."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -9,7 +9,10 @@ const passwordSchema = z.object({
   app_name: z.string().min(1).optional(),
   type: z.enum(['password', 'webhook', 'api_key', 'token', 'other']).optional(),
   username: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
   password: z.string().min(1).optional(),
+  url: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 // GET single password
@@ -80,6 +83,10 @@ export async function PATCH(
       updates.push('username = ?');
       values.push(validated.username);
     }
+    if (validated.email !== undefined) {
+      updates.push('email = ?');
+      values.push(validated.email);
+    }
     if (validated.type !== undefined) {
       updates.push('type = ?');
       values.push(validated.type);
@@ -87,6 +94,14 @@ export async function PATCH(
     if (validated.password !== undefined) {
       updates.push('password = ?');
       values.push(encryptPassword(validated.password));
+    }
+    if (validated.url !== undefined) {
+      updates.push('url = ?');
+      values.push(validated.url);
+    }
+    if (validated.notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(validated.notes);
     }
 
     if (updates.length === 0) {

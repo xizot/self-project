@@ -43,6 +43,7 @@ const automationFormSchema = z.object({
   schedule: z.string().min(1, 'Lịch chạy là bắt buộc'),
   enabled: z.boolean().optional(),
   webhook_id: z.number().nullable().optional(),
+  credential_id: z.number().nullable().optional(),
 });
 
 type AutomationFormValues = z.infer<typeof automationFormSchema>;
@@ -65,6 +66,7 @@ export default function AutomationForm({
   const [scripts, setScripts] = useState<AutomationScript[]>([]);
   const [selectedScriptId, setSelectedScriptId] = useState<string>('');
   const [webhooks, setWebhooks] = useState<Password[]>([]);
+  const [credentials, setCredentials] = useState<Password[]>([]);
 
   const form = useForm<AutomationFormValues>({
     resolver: zodResolver(automationFormSchema),
@@ -76,12 +78,14 @@ export default function AutomationForm({
       schedule: '1h',
       enabled: true,
       webhook_id: null,
+      credential_id: null,
     },
   });
 
   useEffect(() => {
     fetchScripts();
     fetchWebhooks();
+    fetchCredentials();
   }, []);
 
   const fetchScripts = async () => {
@@ -103,6 +107,20 @@ export default function AutomationForm({
       setWebhooks(webhookList);
     } catch (error) {
       console.error('Error fetching webhooks:', error);
+    }
+  };
+
+  const fetchCredentials = async () => {
+    try {
+      const res = await fetch('/api/passwords');
+      const data = await res.json();
+      // Filter credentials (api_key, token, password) - exclude webhooks
+      const credentialList = data.filter(
+        (p: Password) => p.type !== 'webhook'
+      );
+      setCredentials(credentialList);
+    } catch (error) {
+      console.error('Error fetching credentials:', error);
     }
   };
 
@@ -130,6 +148,18 @@ export default function AutomationForm({
           }
         }
         setSelectedScriptId(scriptId);
+        
+        // Parse config to extract credential_id if exists
+        let credentialId = null;
+        try {
+          const config = JSON.parse(initialEditingTask.config);
+          if (config.credential_id) {
+            credentialId = config.credential_id;
+          }
+        } catch {
+          // Config is not JSON, no credential_id
+        }
+        
         form.reset({
           name: initialEditingTask.name,
           description: initialEditingTask.description || '',
@@ -138,6 +168,7 @@ export default function AutomationForm({
           schedule: initialEditingTask.schedule,
           enabled: initialEditingTask.enabled === 1,
           webhook_id: initialEditingTask.webhook_id || null,
+          credential_id: credentialId,
         });
         setOpen(true);
       } catch (error) {
@@ -149,9 +180,10 @@ export default function AutomationForm({
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
-      // Reload scripts and webhooks when opening dialog
+      // Reload scripts, webhooks, and credentials when opening dialog
       fetchScripts();
       fetchWebhooks();
+      fetchCredentials();
     }
     if (!isOpen) {
       setEditingTask(null);
@@ -164,6 +196,7 @@ export default function AutomationForm({
         schedule: '1h',
         enabled: true,
         webhook_id: null,
+        credential_id: null,
       });
     }
   };
@@ -184,13 +217,29 @@ export default function AutomationForm({
           method: 'GET',
           headers: {},
         });
+      } else if (values.type === 'script') {
+        // For script type, ensure credential_id is included in config if selected
+        try {
+          const configObj = JSON.parse(configValue);
+          if (values.credential_id) {
+            configObj.credential_id = values.credential_id;
+          } else {
+            delete configObj.credential_id;
+          }
+          configValue = JSON.stringify(configObj);
+        } catch {
+          // Config is not JSON, skip
+        }
       }
+
+      // Remove credential_id from values as it's stored in config
+      const { credential_id, ...submitValues } = values;
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...values,
+          ...submitValues,
           config: configValue,
         }),
       });
@@ -355,9 +404,13 @@ export default function AutomationForm({
                               (s) => s.id.toString() === value
                             );
                             if (script) {
-                              field.onChange(
-                                JSON.stringify({ path: script.path, script_id: script.id })
-                              );
+                              // Get current credential_id if exists
+                              const currentCredentialId = form.getValues('credential_id');
+                              const configObj: any = { path: script.path, script_id: script.id };
+                              if (currentCredentialId) {
+                                configObj.credential_id = currentCredentialId;
+                              }
+                              field.onChange(JSON.stringify(configObj));
                             }
                           }}
                         >
@@ -372,14 +425,7 @@ export default function AutomationForm({
                                 key={script.id}
                                 value={script.id.toString()}
                               >
-                                <div className="flex flex-col">
-                                  <span>{script.name}</span>
-                                  {script.description && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {script.description}
-                                    </span>
-                                  )}
-                                </div>
+                                {script.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -416,6 +462,58 @@ export default function AutomationForm({
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {form.watch('type') === 'script' && (
+                <FormField
+                  control={form.control}
+                  name="credential_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="mb-1">Credentials (tùy chọn)</FormLabel>
+                      <Select
+                        value={field.value?.toString() || 'none'}
+                        onValueChange={(value) => {
+                          const credentialId = value === 'none' ? null : parseInt(value);
+                          field.onChange(credentialId);
+                          
+                          // Update config to include credential_id
+                          const currentConfig = form.getValues('config');
+                          try {
+                            const configObj = JSON.parse(currentConfig);
+                            if (credentialId) {
+                              configObj.credential_id = credentialId;
+                            } else {
+                              delete configObj.credential_id;
+                            }
+                            form.setValue('config', JSON.stringify(configObj));
+                          } catch {
+                            // Config is not JSON, skip
+                          }
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Chọn credentials cho script" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Không sử dụng credentials</SelectItem>
+                          {credentials.map((credential) => (
+                            <SelectItem key={credential.id} value={credential.id.toString()}>
+                              {credential.app_name}
+                              {credential.username && ` - ${credential.username}`}
+                              {credential.email && ` (${credential.email})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        Chọn credentials từ quản lý mật khẩu để script sử dụng (ví dụ: Jira API token)
+                      </p>
                     </FormItem>
                   )}
                 />

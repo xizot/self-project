@@ -17,6 +17,7 @@ import {
   Key,
   Zap,
   Calendar,
+  GitBranch,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -72,6 +73,12 @@ const navItems = [
     icon: Calendar,
     tab: undefined,
     route: '/cron',
+  },
+  {
+    title: 'Jira',
+    icon: GitBranch,
+    tab: undefined,
+    route: '/jira',
   },
 ];
 

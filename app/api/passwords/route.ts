@@ -9,7 +9,10 @@ const passwordSchema = z.object({
   app_name: z.string().min(1, 'Tên ứng dụng là bắt buộc'),
   type: z.enum(['password', 'webhook', 'api_key', 'token', 'other']).optional(),
   username: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
   password: z.string().min(1, 'Mật khẩu là bắt buộc'),
+  url: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 // GET all passwords
@@ -59,8 +62,8 @@ export async function POST(request: NextRequest) {
     const encryptedPassword = encryptPassword(validated.password);
 
     const stmt = db.prepare(`
-      INSERT INTO passwords (user_id, app_name, type, username, password)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO passwords (user_id, app_name, type, username, email, password, url, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -68,7 +71,10 @@ export async function POST(request: NextRequest) {
       validated.app_name,
       validated.type || 'password',
       validated.username || null,
-      encryptedPassword
+      validated.email || null,
+      encryptedPassword,
+      validated.url || null,
+      validated.notes || null
     );
 
     const password = db

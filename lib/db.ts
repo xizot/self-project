@@ -295,6 +295,51 @@ try {
   }
 }
 
+// Migration: Seed default automation scripts for all users
+// This will add built-in scripts (get-gold-price.js, get-jira-tasks.js) to all existing users
+try {
+  const defaultScripts = [
+    {
+      name: 'Lấy giá vàng PNJ',
+      description: 'Script tự động lấy giá vàng từ trang PNJ (https://www.pnj.com.vn/site/gia-vang)',
+      path: 'scripts/get-gold-price.js',
+    },
+    {
+      name: 'Lấy Jira Tasks',
+      description: 'Script tự động lấy các task được assign cho bạn trên Jira. Cần cấu hình credentials (Jira API token) trong Quản lý Mật khẩu.',
+      path: 'scripts/get-jira-tasks.js',
+    },
+  ];
+
+  // Get all users
+  const users = db.prepare('SELECT id FROM users').all() as Array<{ id: number }>;
+
+  for (const user of users) {
+    for (const script of defaultScripts) {
+      // Check if script already exists for this user (by path)
+      const existing = db
+        .prepare('SELECT id FROM automation_scripts WHERE user_id = ? AND path = ?')
+        .get(user.id, script.path) as { id: number } | undefined;
+
+      if (!existing) {
+        // Insert script for this user
+        db.prepare(
+          `INSERT INTO automation_scripts (user_id, name, description, path, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`
+        ).run(user.id, script.name, script.description, script.path);
+      }
+    }
+  }
+
+  if (users.length > 0) {
+    console.log(`Seeded ${defaultScripts.length} default automation scripts for ${users.length} user(s)`);
+  }
+} catch (error: any) {
+  if (error?.message && !error.message.includes('no such table')) {
+    console.log('Error seeding automation scripts:', error);
+  }
+}
+
 // Note: Default data initialization will be done per user when they register
 // This ensures each user has their own default statuses, projects, and categories
 

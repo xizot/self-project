@@ -1,9 +1,12 @@
 import db from './db';
 import { AutomationTask, Password } from './types';
-import { decryptPassword } from './password-encryption';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { sendWebhookNotification, TaskResult, ScriptResponse } from './webhook-handlers';
+import redis from './redis';
+import { randomUUID } from 'crypto';
+import { decryptPassword } from './password-encryption';
 
 // Check if logs should be shown (default: true)
 const SHOW_LOGS = process.env.AUTOMATION_SHOW_LOGS !== 'false';
@@ -11,17 +14,13 @@ const SHOW_LOGS = process.env.AUTOMATION_SHOW_LOGS !== 'false';
 /**
  * Execute an automation task
  */
-export async function executeTask(task: AutomationTask): Promise<{
-  success: boolean;
-  output?: string;
-  error?: string;
-}> {
+export async function executeTask(task: AutomationTask): Promise<TaskResult> {
   try {
     if (SHOW_LOGS) {
       console.log(`[Automation Worker] Executing task: ${task.name} (ID: ${task.id})`);
     }
 
-    let result: { success: boolean; output?: string; error?: string };
+    let result: TaskResult;
 
     switch (task.type) {
       case 'script': {
@@ -49,10 +48,74 @@ export async function executeTask(task: AutomationTask): Promise<{
           console.log(`[Automation Worker] Running script: ${fullPath}`);
         }
 
+        // Generate unique ID for this script execution
+        const executionId = randomUUID();
+        const redisKey = `automation:result:${executionId}`;
+
+        // Parse config to get credential_id or other configs
+        let taskConfig: any = {};
+        try {
+          taskConfig = JSON.parse(task.config);
+        } catch {
+          // Config is not JSON, treat as string path
+        }
+
+        // Get credentials from passwords table if credential_id is specified
+        const envVars: NodeJS.ProcessEnv = {
+          ...process.env,
+          AUTOMATION_EXECUTION_ID: executionId,
+          AUTOMATION_REDIS_KEY: redisKey,
+        };
+
+        // If credential_id is specified, load credentials from passwords table
+        if (taskConfig.credential_id) {
+          try {
+            const credential = db
+              .prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?')
+              .get(taskConfig.credential_id, task.user_id) as Password | undefined;
+
+            if (credential) {
+              const decryptedPassword = decryptPassword(credential.password);
+
+              // Set credentials based on app_name or type
+              const appName = credential.app_name.toLowerCase();
+
+              if (appName.includes('jira')) {
+                // Jira credentials
+                envVars.JIRA_URL = credential.url || '';
+                envVars.JIRA_EMAIL = credential.email || credential.username || '';
+                envVars.JIRA_API_TOKEN = decryptedPassword;
+                if (credential.username) {
+                  envVars.JIRA_USERNAME = credential.username;
+                }
+              } else {
+                // Generic credentials - set common env vars
+                if (credential.url) envVars[`${appName.toUpperCase()}_URL`] = credential.url;
+                if (credential.email) envVars[`${appName.toUpperCase()}_EMAIL`] = credential.email;
+                if (credential.username) envVars[`${appName.toUpperCase()}_USERNAME`] = credential.username;
+                envVars[`${appName.toUpperCase()}_PASSWORD`] = decryptedPassword;
+                envVars[`${appName.toUpperCase()}_API_TOKEN`] = decryptedPassword; // Also set as API_TOKEN for API keys
+              }
+
+              if (SHOW_LOGS) {
+                console.log(`[Automation Worker] Loaded credentials for ${credential.app_name} (ID: ${credential.id})`);
+              }
+            } else if (SHOW_LOGS) {
+              console.warn(`[Automation Worker] Credential ID ${taskConfig.credential_id} not found for user ${task.user_id}`);
+            }
+          } catch (credError) {
+            if (SHOW_LOGS) {
+              console.error(`[Automation Worker] Error loading credentials:`, credError);
+            }
+          }
+        }
+
         // Execute script and stream output in real-time
+        // Pass execution ID and credentials via environment variables
         const scriptProcess = spawn('node', [fullPath], {
           cwd: process.cwd(),
           stdio: ['inherit', 'pipe', 'pipe'], // stdin: inherit, stdout/stderr: pipe
+          env: envVars,
         });
 
         let stdout = '';
@@ -108,45 +171,179 @@ export async function executeTask(task: AutomationTask): Promise<{
           });
         });
 
-        // Try to parse JSON response from stdout
-        // Scripts should output JSON as the last line of stdout
-        let scriptResponse: any = null;
-        const parsedOutput = stdout.trim();
+        // Try to get result from Redis first (preferred method)
+        // Retry a few times with small delay in case script is still writing
+        let scriptResponse: ScriptResponse | null = null;
+        const maxRetries = 5;
+        const retryDelay = 200; // 200ms between retries
 
-        // Try to find JSON in stdout (usually the last valid JSON line)
-        const jsonLines = stdoutLines
-          .map(line => line.trim())
-          .filter(line => line && (line.startsWith('{') || line.startsWith('[')));
-
-        if (jsonLines.length > 0) {
-          // Use the last JSON line (should be the script's response)
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
-            scriptResponse = JSON.parse(jsonLines[jsonLines.length - 1]);
-          } catch {
-            // If last line is not valid JSON, try parsing the whole stdout
+            const redisResult = await redis.get(redisKey);
+            if (redisResult) {
+              try {
+                const parsed = JSON.parse(redisResult);
+                // Validate it's a script response with new format
+                if (parsed.type || parsed.content !== undefined || parsed.jsonContent !== undefined) {
+                  scriptResponse = {
+                    success: parsed.success !== undefined ? parsed.success : true,
+                    type: parsed.type || 'text',
+                    content: parsed.content,
+                    jsonContent: parsed.jsonContent,
+                    error: parsed.error,
+                    timestamp: parsed.timestamp || new Date().toISOString(),
+                    skipWebhook: parsed.skipWebhook || false,
+                  };
+                } else {
+                  // Old format, convert to new format
+                  scriptResponse = {
+                    success: parsed.success !== undefined ? parsed.success : true,
+                    type: 'json',
+                    content: JSON.stringify(parsed, null, 2),
+                    jsonContent: parsed,
+                    error: parsed.error,
+                    timestamp: new Date().toISOString(),
+                    skipWebhook: parsed.skipWebhook || false,
+                  };
+                }
+
+                // Delete the key after reading (cleanup)
+                await redis.del(redisKey).catch(() => {
+                  // Ignore cleanup errors
+                });
+
+                if (SHOW_LOGS) {
+                  console.log(`[Automation Worker] Retrieved result from Redis: ${redisKey} (attempt ${attempt + 1})`);
+                }
+                break; // Success, exit retry loop
+              } catch (parseError) {
+                if (SHOW_LOGS) {
+                  console.warn(`[Automation Worker] Failed to parse Redis result:`, parseError);
+                }
+                break; // Parse error, don't retry
+              }
+            } else if (attempt < maxRetries - 1) {
+              // No result yet, wait and retry
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+          } catch (redisError) {
+            if (SHOW_LOGS && attempt === 0) {
+              console.warn(`[Automation Worker] Failed to read from Redis, will fallback to stdout:`, redisError);
+            }
+            break; // Redis error, don't retry
+          }
+        }
+
+        if (!scriptResponse && SHOW_LOGS) {
+          console.log(`[Automation Worker] No result found in Redis after ${maxRetries} attempts, falling back to stdout`);
+        }
+
+        // Fallback to stdout parsing if Redis didn't have the result
+        if (!scriptResponse) {
+          const parsedOutput = stdout.trim();
+
+          // Try to find JSON in stdout (usually the last valid JSON line)
+          const jsonLines = stdoutLines
+            .map(line => line.trim())
+            .filter(line => line && (line.startsWith('{') || line.startsWith('[')));
+
+          if (jsonLines.length > 0) {
+            // Use the last JSON line (should be the script's response)
             try {
-              scriptResponse = JSON.parse(parsedOutput);
+              const parsed = JSON.parse(jsonLines[jsonLines.length - 1]);
+              // Validate it's a script response with new format
+              if (parsed.type || parsed.content !== undefined || parsed.jsonContent !== undefined) {
+                scriptResponse = {
+                  success: parsed.success !== undefined ? parsed.success : true,
+                  type: parsed.type || 'text',
+                  content: parsed.content,
+                  jsonContent: parsed.jsonContent,
+                  error: parsed.error,
+                  timestamp: parsed.timestamp || new Date().toISOString(),
+                  skipWebhook: parsed.skipWebhook || false,
+                };
+              } else {
+                // Old format, convert to new format
+                scriptResponse = {
+                  success: parsed.success !== undefined ? parsed.success : true,
+                  type: 'json',
+                  content: JSON.stringify(parsed, null, 2),
+                  jsonContent: parsed,
+                  error: parsed.error,
+                  timestamp: new Date().toISOString(),
+                  skipWebhook: parsed.skipWebhook || false,
+                };
+              }
+            } catch {
+              // If last line is not valid JSON, try parsing the whole stdout
+              try {
+                const parsed = JSON.parse(parsedOutput);
+                if (parsed.type || parsed.content !== undefined || parsed.jsonContent !== undefined) {
+                  scriptResponse = {
+                    success: parsed.success !== undefined ? parsed.success : true,
+                    type: parsed.type || 'text',
+                    content: parsed.content,
+                    jsonContent: parsed.jsonContent,
+                    error: parsed.error,
+                    timestamp: parsed.timestamp || new Date().toISOString(),
+                    skipWebhook: parsed.skipWebhook || false,
+                  };
+                } else {
+                  scriptResponse = {
+                    success: parsed.success !== undefined ? parsed.success : true,
+                    type: 'json',
+                    content: JSON.stringify(parsed, null, 2),
+                    jsonContent: parsed,
+                    error: parsed.error,
+                    timestamp: new Date().toISOString(),
+                    skipWebhook: parsed.skipWebhook || false,
+                  };
+                }
+              } catch {
+                // Not JSON, use raw output
+              }
+            }
+          } else {
+            // Try parsing entire stdout as JSON
+            try {
+              const parsed = JSON.parse(parsedOutput);
+              if (parsed.type || parsed.content !== undefined || parsed.jsonContent !== undefined) {
+                scriptResponse = {
+                  success: parsed.success !== undefined ? parsed.success : true,
+                  type: parsed.type || 'text',
+                  content: parsed.content,
+                  jsonContent: parsed.jsonContent,
+                  error: parsed.error,
+                  timestamp: parsed.timestamp || new Date().toISOString(),
+                  skipWebhook: parsed.skipWebhook || false,
+                };
+              } else {
+                scriptResponse = {
+                  success: parsed.success !== undefined ? parsed.success : true,
+                  type: 'json',
+                  content: JSON.stringify(parsed, null, 2),
+                  jsonContent: parsed,
+                  error: parsed.error,
+                  timestamp: new Date().toISOString(),
+                  skipWebhook: parsed.skipWebhook || false,
+                };
+              }
             } catch {
               // Not JSON, use raw output
             }
           }
-        } else {
-          // Try parsing entire stdout as JSON
-          try {
-            scriptResponse = JSON.parse(parsedOutput);
-          } catch {
-            // Not JSON, use raw output
-          }
         }
 
-        // Use script response if available, otherwise use raw output
+        // Build result with script response
         if (scriptResponse) {
           result = {
-            success: scriptResponse.success !== undefined ? scriptResponse.success : true,
-            output: JSON.stringify(scriptResponse, null, 2),
-            error: scriptResponse.error || (scriptResponse.success === false ? scriptResponse.error || 'Script returned error' : undefined),
+            success: scriptResponse.success,
+            output: scriptResponse.content || JSON.stringify(scriptResponse.jsonContent || {}, null, 2),
+            error: scriptResponse.error,
+            scriptResponse: scriptResponse,
           };
         } else {
+          // Fallback to raw output
           result = {
             success: true,
             output: stdout || 'Script completed with no output',
@@ -205,290 +402,19 @@ export async function executeTask(task: AutomationTask): Promise<{
     }
 
     // Send result to webhook if configured
-    if (task.webhook_id) {
+    // Skip webhook if script response has skipWebhook flag set to true
+    if (SHOW_LOGS && task.webhook_id) {
+      console.log(`[Automation Worker] Webhook check for ${task.name}: skipWebhook=${result.scriptResponse?.skipWebhook}, hasScriptResponse=${!!result.scriptResponse}`);
+    }
+
+    if (task.webhook_id && !result.scriptResponse?.skipWebhook) {
       try {
         const webhook = db
           .prepare('SELECT * FROM passwords WHERE id = ? AND type = ?')
           .get(task.webhook_id, 'webhook') as Password | undefined;
 
         if (webhook) {
-          const webhookUrl = decryptPassword(webhook.password);
-
-          // Check if this is a Discord webhook
-          const isDiscordWebhook = webhookUrl.includes('discord.com/api/webhooks') ||
-                                   webhookUrl.includes('discordapp.com/api/webhooks');
-
-          let payload: any;
-
-          if (isDiscordWebhook) {
-            // Format payload for Discord webhook
-            // Discord limits: title max 256 chars, description max 4096 chars, field value max 1024 chars
-            const statusEmoji = result.success ? '✅' : '❌';
-            const statusText = result.success ? 'Success' : 'Failed';
-            const color = result.success ? 0x00ff00 : 0xff0000; // Green for success, red for failure
-
-            // Truncate task name if too long (max 200 chars for title)
-            const taskName = task.name.length > 200 ? task.name.substring(0, 197) + '...' : task.name;
-
-            // Build base description (keep it short)
-            let description = `**Status:** ${statusEmoji} ${statusText}\n`;
-            description += `**Run Count:** ${(task.run_count || 0) + 1}\n`;
-            description += `**Timestamp:** <t:${Math.floor(new Date().getTime() / 1000)}:F>\n`;
-
-            // Build fields array for better organization
-            const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
-
-            // Helper function to sanitize text for Discord code blocks
-            const sanitizeForCodeBlock = (text: string, maxLength: number = 900): string => {
-              if (!text) return '';
-
-              // Remove or replace problematic characters
-              let sanitized = String(text)
-                .replace(/\u0000/g, '') // Remove null bytes
-                .replace(/\r\n/g, '\n') // Normalize line endings
-                .replace(/\r/g, '\n')
-                .replace(/\u200B/g, ''); // Remove zero-width spaces
-
-              // Truncate if too long (reserve space for code block markers)
-              // Discord field value limit is 1024, code block adds ~10 chars
-              const actualMaxLength = Math.min(maxLength, maxLength - 10);
-              if (sanitized.length > actualMaxLength) {
-                sanitized = sanitized.substring(0, actualMaxLength - 3) + '...';
-              }
-
-              return sanitized;
-            };
-
-            // Helper function to format field value with code block
-            const formatFieldValue = (content: string, maxLength: number = 900): string => {
-              const sanitized = sanitizeForCodeBlock(content, maxLength);
-              // Discord field value max is 1024, code block format: ```text\n...\n``` = ~10 chars
-              const codeBlock = `\`\`\`text\n${sanitized}\`\`\``;
-
-              // Final check - ensure total length doesn't exceed 1024
-              if (codeBlock.length > 1024) {
-                const adjustedLength = 1024 - 10; // Reserve for code block markers
-                const truncated = sanitizeForCodeBlock(content, adjustedLength);
-                return `\`\`\`text\n${truncated}\`\`\``;
-              }
-
-              return codeBlock;
-            };
-
-            // Add output as a field if exists (max 1024 chars per field value)
-            if (result.output) {
-              try {
-                // Try to parse as JSON and format it nicely if possible
-                let outputText = result.output;
-                try {
-                  const parsed = JSON.parse(result.output);
-                  outputText = JSON.stringify(parsed, null, 2);
-                } catch {
-                  // Not JSON, use as-is
-                }
-
-                const fieldValue = formatFieldValue(outputText, 900);
-                fields.push({
-                  name: '📤 Output',
-                  value: fieldValue,
-                  inline: false
-                });
-              } catch (err) {
-                if (SHOW_LOGS) {
-                  console.warn(`[Automation Worker] Error formatting output field:`, err);
-                }
-                // Fallback: just add a simple message
-                fields.push({
-                  name: '📤 Output',
-                  value: '```\n(Output too large or invalid)\n```',
-                  inline: false
-                });
-              }
-            }
-
-            // Add error as a field if exists
-            if (result.error) {
-              try {
-                const fieldValue = formatFieldValue(result.error, 900);
-                fields.push({
-                  name: '❌ Error',
-                  value: fieldValue,
-                  inline: false
-                });
-              } catch (err) {
-                if (SHOW_LOGS) {
-                  console.warn(`[Automation Worker] Error formatting error field:`, err);
-                }
-                fields.push({
-                  name: '❌ Error',
-                  value: '```\n(Error message too large or invalid)\n```',
-                  inline: false
-                });
-              }
-            }
-
-            // Build embed object
-            const embed: any = {
-              title: `Automation Task: ${taskName}`,
-              description: description,
-              color: color,
-              timestamp: new Date().toISOString(),
-              footer: {
-                text: `Task ID: ${task.id}`
-              }
-            };
-
-            // Add fields if any
-            if (fields.length > 0) {
-              embed.fields = fields;
-            }
-
-            payload = {
-              embeds: [embed]
-            };
-
-            // Final validation: ensure all Discord limits are respected
-            // Discord limits:
-            // - Title: 256 chars
-            // - Description: 4096 chars
-            // - Field name: 256 chars
-            // - Field value: 1024 chars
-            // - Total fields: 25
-            // - Total embed: 6000 chars
-
-            // Validate title
-            if (embed.title && embed.title.length > 256) {
-              embed.title = embed.title.substring(0, 253) + '...';
-            }
-
-            // Validate description
-            if (embed.description && embed.description.length > 4096) {
-              embed.description = embed.description.substring(0, 4093) + '...';
-            }
-
-            // Validate fields
-            if (embed.fields) {
-              // Limit to 25 fields
-              if (embed.fields.length > 25) {
-                embed.fields = embed.fields.slice(0, 25);
-              }
-
-              // Validate each field
-              embed.fields = embed.fields.map((field: { name: string; value: string; inline?: boolean }) => {
-                const validatedField = { ...field };
-
-                // Validate field name
-                if (validatedField.name.length > 256) {
-                  validatedField.name = validatedField.name.substring(0, 253) + '...';
-                }
-
-                // Validate field value
-                if (validatedField.value.length > 1024) {
-                  validatedField.value = validatedField.value.substring(0, 1021) + '...';
-                }
-
-                return validatedField;
-              });
-            }
-
-            // Rebuild payload with validated embed
-            payload = { embeds: [embed] };
-
-            // Final check: validate JSON can be stringified
-            try {
-              const testJson = JSON.stringify(payload);
-              if (testJson.length > 20000) {
-                if (SHOW_LOGS) {
-                  console.warn(`[Automation Worker] Discord payload too large (${testJson.length} chars), simplifying...`);
-                }
-                // Simplify by reducing fields
-                if (embed.fields && embed.fields.length > 1) {
-                  embed.fields = embed.fields.slice(0, 1);
-                  // Truncate field value if too long
-                  if (embed.fields[0].value.length > 1024) {
-                    // Extract content from code block, truncate, and re-format
-                    let fieldContent = embed.fields[0].value
-                      .replace(/```text\n/g, '')
-                      .replace(/```/g, '')
-                      .trim();
-                    // Truncate to 800 chars
-                    if (fieldContent.length > 800) {
-                      fieldContent = fieldContent.substring(0, 797) + '...';
-                    }
-                    embed.fields[0].value = `\`\`\`text\n${fieldContent}\`\`\``;
-                  }
-                }
-                payload = { embeds: [embed] };
-              }
-            } catch (jsonError) {
-              if (SHOW_LOGS) {
-                console.error(`[Automation Worker] Error validating payload JSON:`, jsonError);
-              }
-              // Fallback: create minimal payload
-              payload = {
-                embeds: [{
-                  title: `Automation Task: ${taskName.substring(0, 200)}`,
-                  description: `**Status:** ${statusEmoji} ${statusText}\n**Run Count:** ${(task.run_count || 0) + 1}`,
-                  color: color,
-                  timestamp: new Date().toISOString(),
-                }]
-              };
-            }
-          } else {
-            // Generic webhook format for other services
-            payload = {
-              task_id: task.id,
-              task_name: task.name,
-              success: result.success,
-              output: result.output,
-              error: result.error,
-              timestamp: new Date().toISOString(),
-              run_count: (task.run_count || 0) + 1,
-            };
-          }
-
-          // Validate payload before sending
-          let payloadJson: string;
-          try {
-            payloadJson = JSON.stringify(payload);
-            // Check for invalid characters that might cause issues
-            if (payloadJson.includes('\u0000')) {
-              if (SHOW_LOGS) {
-                console.warn(`[Automation Worker] Payload contains null bytes, cleaning...`);
-              }
-              payloadJson = payloadJson.replace(/\u0000/g, '');
-            }
-          } catch (jsonError) {
-            if (SHOW_LOGS) {
-              console.error(`[Automation Worker] Error stringifying webhook payload:`, jsonError);
-            }
-            throw new Error('Failed to serialize webhook payload');
-          }
-
-          const webhookResponse = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: payloadJson,
-          });
-
-          if (SHOW_LOGS) {
-            if (!webhookResponse.ok) {
-              const errorText = await webhookResponse.text().catch(() => '');
-              console.warn(`[Automation Worker] Webhook returned ${webhookResponse.status} for ${webhook.app_name}`);
-              if (errorText) {
-                console.warn(`[Automation Worker] Webhook error response: ${errorText.substring(0, 500)}`);
-              }
-              // Log payload info for debugging
-              if (webhookResponse.status === 400) {
-                console.warn(`[Automation Worker] Payload size: ${payloadJson.length} chars`);
-                console.warn(`[Automation Worker] Payload preview: ${payloadJson.substring(0, 200)}...`);
-              }
-            } else {
-              console.log(`[Automation Worker] Sent result to webhook: ${webhook.app_name}`);
-            }
-          }
+          await sendWebhookNotification(task, result, webhook);
         }
       } catch (webhookError) {
         if (SHOW_LOGS) {
@@ -496,10 +422,15 @@ export async function executeTask(task: AutomationTask): Promise<{
         }
         // Don't fail the task if webhook fails
       }
+    } else if (task.webhook_id && result.scriptResponse?.skipWebhook) {
+      if (SHOW_LOGS) {
+        console.log(`[Automation Worker] Skipping webhook for ${task.name} - skipWebhook flag is true (no new tasks)`);
+      }
     }
 
     // Update task after execution (only if task is still enabled)
     const now = new Date().toISOString();
+    const nowDate = new Date();
 
     // Check if task is still enabled before scheduling next run
     const currentTask = db
@@ -507,7 +438,8 @@ export async function executeTask(task: AutomationTask): Promise<{
       .get(task.id) as { enabled: number } | undefined;
 
     if (currentTask && currentTask.enabled === 1) {
-      const nextRunAt = calculateNextRun(task.schedule);
+      // Calculate next run from current time (when task finishes), not from when it started
+      const nextRunAt = calculateNextRun(task.schedule, nowDate);
       db.prepare(`
         UPDATE automation_tasks
         SET last_run_at = ?,
@@ -548,7 +480,7 @@ export async function executeTask(task: AutomationTask): Promise<{
       console.error(`[Automation Worker] Error executing task ${task.name}:`, error);
     }
 
-    const errorResult = {
+    const errorResult: TaskResult = {
       success: false,
       error: error.message || String(error),
     };
@@ -605,9 +537,11 @@ export async function checkAndExecuteTasks(): Promise<void> {
 
 /**
  * Calculate next run time based on schedule
+ * @param schedule - Schedule string (e.g., "15s", "30s", "1h", "30m", "1d", "1w")
+ * @param fromDate - Date to calculate from (defaults to now)
  */
-function calculateNextRun(schedule: string): string {
-  const now = new Date();
+function calculateNextRun(schedule: string, fromDate?: Date): string {
+  const now = fromDate || new Date();
 
   // Check if it's an interval (e.g., "15s", "30s", "1h", "30m", "1d", "1w")
   const intervalMatch = schedule.match(/^(\d+)([smhdw])$/);
@@ -636,4 +570,3 @@ function calculateNextRun(schedule: string): string {
   nextRun.setHours(nextRun.getHours() + 1);
   return nextRun.toISOString();
 }
-
