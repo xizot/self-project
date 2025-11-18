@@ -194,6 +194,37 @@ db.exec(`
     FOREIGN KEY (webhook_id) REFERENCES passwords(id) ON DELETE SET NULL
   );
 
+  -- Hydration settings
+  CREATE TABLE IF NOT EXISTS hydration_settings (
+    user_id INTEGER PRIMARY KEY,
+    is_active INTEGER NOT NULL DEFAULT 0,
+    reminder_sound TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS hydration_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    slot_index INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    confirmed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, date, slot_index)
+  );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    metadata TEXT,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
@@ -213,6 +244,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_board ON kanban_cards(board_id);
   CREATE INDEX IF NOT EXISTS idx_kanban_cards_status ON kanban_cards(status);
   CREATE INDEX IF NOT EXISTS idx_categories_position ON categories(position);
+  CREATE INDEX IF NOT EXISTS idx_hydration_logs_user_date ON hydration_logs(user_id, date);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
 `);
 
 // Migration: Add webhook_id column to automation_tasks if it doesn't exist

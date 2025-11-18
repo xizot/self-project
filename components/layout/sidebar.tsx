@@ -20,6 +20,8 @@ import {
   GitBranch,
   Code,
   Timer,
+  Download,
+  Droplet,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -93,6 +95,18 @@ const navItems = [
     icon: Timer,
     tab: undefined,
     route: '/pomodoro',
+  },
+  {
+    title: 'Convert',
+    icon: Download,
+    tab: undefined,
+    route: '/convert',
+  },
+  {
+    title: 'Hydration',
+    icon: Droplet,
+    tab: undefined,
+    route: '/hydration',
   },
 ];
 

@@ -148,11 +148,73 @@ docker-compose down -v
 - `PATCH /api/notes/[id]` - Cập nhật note
 - `DELETE /api/notes/[id]` - Xóa note
 
+## Cài đặt yt-dlp (cho tính năng Convert Video)
+
+Tính năng Convert Video yêu cầu `yt-dlp` để tải video từ YouTube, TikTok, Facebook.
+
+### Cài đặt trên Windows (Local Development)
+
+**Cách 1: Sử dụng PowerShell script (Khuyến nghị)**
+```powershell
+.\scripts\install-ytdlp.ps1
+```
+
+**Cách 2: Sử dụng pip**
+```powershell
+pip install yt-dlp
+```
+
+**Cách 3: Sử dụng winget (Windows Package Manager)**
+```powershell
+winget install yt-dlp
+```
+
+**Cách 4: Tải binary trực tiếp**
+- Tải từ: https://github.com/yt-dlp/yt-dlp/releases
+- Giải nén và thêm vào PATH
+
+### Cài đặt trên Linux/macOS (Local Development)
+
+**Cách 1: Sử dụng bash script**
+```bash
+chmod +x scripts/install-ytdlp.sh
+./scripts/install-ytdlp.sh
+```
+
+**Cách 2: Sử dụng pip**
+```bash
+pip install yt-dlp
+# hoặc
+pip3 install yt-dlp
+```
+
+**Cách 3: Sử dụng Homebrew (macOS)**
+```bash
+brew install yt-dlp
+```
+
+### Cài đặt trong Docker
+
+`yt-dlp` đã được tự động cài đặt trong Dockerfile. Chỉ cần rebuild image:
+
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+### Kiểm tra cài đặt
+
+Sau khi cài đặt, kiểm tra bằng lệnh:
+```bash
+yt-dlp --version
+```
+
 ## Lưu ý
 
 - Database SQLite được lưu trong thư mục `data/`
 - Redis được sử dụng để cache dữ liệu
 - Dữ liệu sẽ được lưu trong Docker volumes khi chạy với Docker Compose
+- `yt-dlp` cần được cài đặt trên server để sử dụng tính năng Convert Video
 
 ## License
 

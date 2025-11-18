@@ -3,7 +3,7 @@
 import { AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { calculateTimeRemaining, formatTimeRemaining } from '@/lib/utils/time';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface TimeRemainingProps {
   dueDate: string | null;
@@ -11,23 +11,18 @@ interface TimeRemainingProps {
 }
 
 export default function TimeRemaining({ dueDate, className }: TimeRemainingProps) {
-  const [timeRemaining, setTimeRemaining] = useState(
-    calculateTimeRemaining(dueDate)
-  );
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!dueDate) return;
-
-    // Initial calculation
-    setTimeRemaining(calculateTimeRemaining(dueDate));
-
-    // Update every minute
     const interval = setInterval(() => {
-      setTimeRemaining(calculateTimeRemaining(dueDate));
-    }, 60000); // Update every minute
+      setTick((prev) => prev + 1);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [dueDate]);
+
+  const timeRemaining = useMemo(() => calculateTimeRemaining(dueDate), [dueDate, tick]);
 
   if (!timeRemaining || !dueDate) return null;
 
