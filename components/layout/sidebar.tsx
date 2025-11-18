@@ -19,6 +19,7 @@ import {
   Calendar,
   GitBranch,
   Code,
+  Timer,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -86,6 +87,12 @@ const navItems = [
     icon: Code,
     tab: undefined,
     route: '/formatter',
+  },
+  {
+    title: 'Pomodoro',
+    icon: Timer,
+    tab: undefined,
+    route: '/pomodoro',
   },
 ];
 
