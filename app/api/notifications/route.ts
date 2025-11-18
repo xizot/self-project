@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import {
+  clearNotificationByMetadata,
   createNotification,
   getNotifications,
   markAllNotificationsRead,
@@ -54,6 +55,15 @@ export async function POST(request: NextRequest) {
 
     if (action === 'mark_all_read') {
       markAllNotificationsRead(user.id);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'clear_by_metadata') {
+      const { type, metadata } = body;
+      if (!type) {
+        return NextResponse.json({ error: 'type is required' }, { status: 400 });
+      }
+      clearNotificationByMetadata(user.id, type, metadata);
       return NextResponse.json({ success: true });
     }
 

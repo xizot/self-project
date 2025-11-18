@@ -14,10 +14,7 @@ interface GetOptions {
   limit?: number;
 }
 
-export function getNotifications(
-  userId: number,
-  options: GetOptions = {}
-): AppNotification[] {
+export function getNotifications(userId: number, options: GetOptions = {}): AppNotification[] {
   const limit = options.limit ?? 10;
   const unreadOnly = options.unreadOnly ? 1 : null;
 
@@ -33,22 +30,33 @@ export function getNotifications(
   return db.prepare(baseQuery).all(userId, limit) as AppNotification[];
 }
 
+const stringifyMetadata = (metadata?: Record<string, any> | null) =>
+  metadata ? JSON.stringify(metadata) : null;
+
 export function createNotification(
   userId: number,
   type: string,
   message: string,
   metadata?: Record<string, any>
 ) {
-  const metadataString = metadata ? JSON.stringify(metadata) : null;
+  const metadataString = stringifyMetadata(metadata);
 
   const existing = db
     .prepare(
-      `SELECT id FROM notifications
-       WHERE user_id = ? AND type = ? AND metadata = ? AND is_read = 0`
+      `SELECT id, is_read FROM notifications
+       WHERE user_id = ? AND type = ? AND IFNULL(metadata, '') = IFNULL(?, '')`
     )
-    .get(userId, type, metadataString) as { id: number } | undefined;
+    .get(userId, type, metadataString ?? null) as { id: number; is_read: number } | undefined;
 
   if (existing) {
+    if (existing.is_read === 0) {
+      return existing;
+    }
+    db.prepare(
+      `UPDATE notifications
+       SET is_read = 0, message = ?, created_at = datetime('now')
+       WHERE id = ?`
+    ).run(message, existing.id);
     return existing;
   }
 
@@ -72,5 +80,18 @@ export function markAllNotificationsRead(userId: number) {
   db.prepare(
     `UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`
   ).run(userId);
+}
+
+export function clearNotificationByMetadata(
+  userId: number,
+  type: string,
+  metadata?: Record<string, any> | null
+) {
+  const metadataString = stringifyMetadata(metadata);
+  db.prepare(
+    `UPDATE notifications
+     SET is_read = 1
+     WHERE user_id = ? AND type = ? AND IFNULL(metadata, '') = IFNULL(?, '')`
+  ).run(userId, type, metadataString ?? null);
 }
 

@@ -247,6 +247,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_hydration_logs_user_date ON hydration_logs(user_id, date);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
+  DELETE FROM notifications
+  WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM notifications
+    GROUP BY user_id, type, IFNULL(metadata, '')
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_unique ON notifications(user_id, type, IFNULL(metadata, ''));
 `);
 
 // Migration: Add webhook_id column to automation_tasks if it doesn't exist

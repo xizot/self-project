@@ -220,6 +220,7 @@ export default function HydrationReminder() {
     async (slotIndex: number) => {
       const slot = schedule[slotIndex];
       if (!slot) return;
+      if (consumedSlots.includes(slotIndex)) return;
       const key = `${selectedDate}-${slotIndex}`;
       if (overdueNotifiedRef.current.has(key)) return;
       overdueNotifiedRef.current.add(key);
@@ -237,7 +238,7 @@ export default function HydrationReminder() {
         console.error('Failed to create notification:', error);
       }
     },
-    [schedule, selectedDate]
+    [consumedSlots, schedule, selectedDate]
   );
 
   const currentSlotIndex = useMemo(() => {
@@ -284,10 +285,20 @@ export default function HydrationReminder() {
         });
         if (!res.ok) throw new Error('Failed to confirm hydration');
         setConsumedSlots((prev) => [...prev, index].sort((a, b) => a - b));
+        overdueNotifiedRef.current.delete(`${selectedDate}-${index}`);
         if (pendingSlotIndex === index) {
           setPendingSlotIndex(null);
           setShowConfirmDialog(false);
         }
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'clear_by_metadata',
+            type: 'hydration_overdue',
+            metadata: { date: selectedDate, slot_index: index },
+          }),
+        });
       } catch (error) {
         console.error(error);
       }
