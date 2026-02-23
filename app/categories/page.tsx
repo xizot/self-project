@@ -1,4 +1,4 @@
-import CategoriesManagement from '@/components/features/categories/categories-management';
+import CategoriesManagement from '@/src/features/categories/categories-management';
 
 export default function CategoriesPage() {
   return (
@@ -7,4 +7,3 @@ export default function CategoriesPage() {
     </div>
   );
 }
-

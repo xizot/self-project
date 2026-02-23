@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import {
   confirmHydrationSlot,
@@ -6,6 +5,7 @@ import {
   getHydrationSettings,
   hydrationSchedule,
 } from '@/lib/hydration';
+import { NextRequest, NextResponse } from 'next/server';
 
 function normalizeDate(date?: string | null) {
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       date,
-      schedule: hydrationSchedule,
+      schedule: settings.custom_schedule ?? hydrationSchedule,
       logs,
       settings,
     });
@@ -63,4 +63,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

@@ -1,4 +1,4 @@
-import CodeFormatter from '@/components/features/formatter/code-formatter';
+import CodeFormatter from '@/src/features/formatter/code-formatter';
 
 export default function FormatterPage() {
   return (
@@ -7,4 +7,3 @@ export default function FormatterPage() {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-import PomodoroTimer from '@/components/features/pomodoro/pomodoro-timer';
+import PomodoroTimer from '@/src/features/pomodoro/pomodoro-timer';
 
 export default function PomodoroPage() {
   return (
@@ -7,4 +7,3 @@ export default function PomodoroPage() {
     </div>
   );
 }
-

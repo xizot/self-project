@@ -1,167 +1,102 @@
-import { NextRequest, NextResponse } from 'next/server';
+import ytdl from '@distube/ytdl-core';
 import { requireAuth } from '@/lib/auth';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
+import { NextRequest, NextResponse } from 'next/server';
 
-type Platform = 'youtube' | 'tiktok' | 'facebook';
 type Format = 'mp4' | 'mp3' | 'webm' | 'm4a';
-
-const execAsync = promisify(exec);
 
 /**
  * POST /api/convert/download
- * Download and convert video/audio
+ * YouTube: @distube/ytdl-core (no binary required)
+ * TikTok/Facebook: not supported without yt-dlp
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth();
-    const body = await request.json();
-    const { url, platform, format, quality } = body;
+    await requireAuth();
+    const { url, platform, format, quality } = await request.json();
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Validate platform
-    const validPlatforms: Platform[] = ['youtube', 'tiktok', 'facebook'];
-    if (!platform || !validPlatforms.includes(platform)) {
-      return NextResponse.json(
-        { error: 'Invalid platform' },
-        { status: 400 }
-      );
-    }
-
-    // Validate format
     const validFormats: Format[] = ['mp4', 'mp3', 'webm', 'm4a'];
     if (!format || !validFormats.includes(format)) {
+      return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+    }
+
+    if (platform !== 'youtube') {
       return NextResponse.json(
-        { error: 'Invalid format' },
-        { status: 400 }
+        {
+          error:
+            'TikTok và Facebook chưa hỗ trợ tải trực tiếp. Vui lòng cài yt-dlp để dùng tính năng này.',
+        },
+        { status: 422 }
       );
     }
 
-    // Try to use yt-dlp if available
-    try {
-      // Check if yt-dlp is available
-      try {
-        await execAsync('yt-dlp --version');
-      } catch {
-        return NextResponse.json({
-          error: 'yt-dlp chưa được cài đặt trên server',
-          message: 'Vui lòng cài đặt yt-dlp: pip install yt-dlp hoặc brew install yt-dlp',
-        }, { status: 501 });
-      }
+    const isAudio = format === 'mp3' || format === 'm4a';
 
-      // Determine output format and quality
-      let formatOption = '';
-      if (format === 'mp3') {
-        const qualityMap: Record<string, string> = {
-          'best': '0',
-          '320k': '320K',
-          '256k': '256K',
-          '192k': '192K',
-          '128k': '128K',
-        };
-        formatOption = `-x --audio-format mp3 --audio-quality ${qualityMap[quality] || '0'}`;
-      } else if (format === 'm4a') {
-        const qualityMap: Record<string, string> = {
-          'best': '0',
-          '320k': '320K',
-          '256k': '256K',
-          '192k': '192K',
-          '128k': '128K',
-        };
-        formatOption = `-x --audio-format m4a --audio-quality ${qualityMap[quality] || '0'}`;
-      } else {
-        // Video format
-        const qualityMap: Record<string, string> = {
-          'best': 'best',
-          '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-          '720p': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
-          '480p': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
-          '360p': 'bestvideo[height<=360]+bestaudio/best[height<=360]',
-        };
-        formatOption = `-f ${qualityMap[quality] || 'best'}`;
-      }
+    // Get video info first
+    const info = await ytdl.getInfo(url);
+    const title = info.videoDetails.title
+      .replace(/[<>:"/\\|?*]/g, '')
+      .trim()
+      .substring(0, 100);
 
-      // Create temp directory if it doesn't exist
-      const tmpDir = os.tmpdir();
-      const outputPath = path.join(tmpDir, `download_${Date.now()}_${Math.random().toString(36).substring(7)}.${format}`);
-      
-      // Build command
-      const command = `yt-dlp ${formatOption} -o "${outputPath}" --no-playlist "${url}"`;
-      
-      // Execute download
-      await execAsync(command, { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer
-      
-      // Read file
-      const fileBuffer = await fs.readFile(outputPath);
-      
-      // Get filename from yt-dlp output or use default
-      let filename = `download.${format}`;
-      try {
-        const { stdout: titleOutput } = await execAsync(`yt-dlp --get-filename -o "%(title)s.%(ext)s" "${url}"`);
-        filename = titleOutput.trim().replace(/\n/g, '') || filename;
-        // Sanitize filename
-        filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 200);
-        if (!filename.endsWith(`.${format}`)) {
-          filename = `${filename}.${format}`;
-        }
-      } catch {
-        // Use default filename
-      }
-      
-      // Clean up temp file
-      try {
-        await fs.unlink(outputPath);
-      } catch {
-        // Ignore cleanup errors
-      }
-      
-      // Determine content type
-      const contentType = format === 'mp3' 
+    let downloadOptions: ytdl.downloadOptions;
+
+    if (isAudio) {
+      downloadOptions = {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+      };
+    } else {
+      // For video: select best merged format at or below requested height
+      const maxHeight =
+        quality === 'best' ? Infinity : parseInt(quality.replace('p', ''), 10);
+
+      downloadOptions = {
+        filter: (f) => {
+          if (!f.hasVideo || !f.hasAudio) return false;
+          if (quality === 'best') return true;
+          return (f.height ?? 0) <= maxHeight;
+        },
+        quality: 'highest',
+      };
+    }
+
+    // Stream and buffer the download
+    const stream = ytdl.downloadFromInfo(info, downloadOptions);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
+
+    // Determine content type and filename
+    const contentType =
+      format === 'mp3'
         ? 'audio/mpeg'
         : format === 'm4a'
-        ? 'audio/mp4'
-        : format === 'webm'
-        ? 'video/webm'
-        : 'video/mp4';
-      
-      return new NextResponse(fileBuffer, {
-        headers: {
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-          'Content-Length': fileBuffer.length.toString(),
-        },
-      });
-    } catch (error: any) {
-      console.error('Error downloading video:', error);
-      
-      // Check if it's a yt-dlp error
-      if (error.message?.includes('yt-dlp') || error.code === 'ENOENT') {
-        return NextResponse.json({
-          error: 'yt-dlp chưa được cài đặt trên server',
-          message: 'Vui lòng cài đặt yt-dlp: pip install yt-dlp hoặc brew install yt-dlp',
-        }, { status: 501 });
-      }
-      
-      return NextResponse.json(
-        { error: error.message || 'Không thể tải video. Vui lòng kiểm tra URL và thử lại.' },
-        { status: 500 }
-      );
-    }
+          ? 'audio/mp4'
+          : format === 'webm'
+            ? 'video/webm'
+            : 'video/mp4';
+
+    // Use the actual format extension from what ytdl selected (audio may be webm)
+    const filename = `${title}.${format}`;
+
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        'Content-Length': buffer.byteLength.toString(),
+      },
+    });
   } catch (error: any) {
     console.error('Error downloading video:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to download video' },
+      { error: error.message || 'Không thể tải video' },
       { status: 500 }
     );
   }
 }
-

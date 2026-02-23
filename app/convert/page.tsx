@@ -1,4 +1,4 @@
-import VideoConverter from '@/components/features/convert/video-converter';
+import VideoConverter from '@/src/features/convert/video-converter';
 
 export default function ConvertPage() {
   return (
@@ -7,4 +7,3 @@ export default function ConvertPage() {
     </div>
   );
 }
-

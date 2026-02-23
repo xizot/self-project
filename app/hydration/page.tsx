@@ -1,4 +1,4 @@
-import HydrationReminder from '@/components/features/hydration/hydration-reminder';
+import HydrationReminder from '@/src/features/hydration/hydration-reminder';
 
 export default function HydrationPage() {
   return (
@@ -7,4 +7,3 @@ export default function HydrationPage() {
     </div>
   );
 }
-

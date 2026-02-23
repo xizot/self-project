@@ -1,4 +1,4 @@
-import CronManagement from '@/components/features/automation/cron-management';
+import CronManagement from '@/src/features/automation/cron-management';
 
 export default function CronPage() {
   return (
@@ -7,4 +7,3 @@ export default function CronPage() {
     </div>
   );
 }
-

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://shared-ui.xizot.dev/schema.json",
+  "style": "new-york",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "app/globals.css"
+  },
+  "aliases": {
+    "components": "@/shared/components",
+    "ui": "@/shared/components/ui",
+    "lib": "@/shared/lib",
+    "hooks": "@/shared/hooks",
+    "constants": "@/shared/constants"
+  }
+}

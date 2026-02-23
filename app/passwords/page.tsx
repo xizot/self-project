@@ -1,4 +1,4 @@
-import PasswordsManagement from '@/components/features/passwords/passwords-management';
+import PasswordsManagement from '@/src/features/passwords/passwords-management';
 
 export default function PasswordsPage() {
   return (
@@ -7,4 +7,3 @@ export default function PasswordsPage() {
     </div>
   );
 }
-

@@ -1,10 +1,9 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useState, useEffect } from 'react';
+import TaskKanban from '@/src/features/tasks/task-kanban';
+import TaskList from '@/src/features/tasks/task-list';
 import { useSearchParams } from 'next/navigation';
-import TaskList from '@/components/features/tasks/task-list';
-import TaskKanban from '@/components/features/tasks/task-kanban';
+import { Suspense, useEffect, useState } from 'react';
 
 function HomeContent() {
   const searchParams = useSearchParams();

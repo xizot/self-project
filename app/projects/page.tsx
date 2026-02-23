@@ -1,4 +1,4 @@
-import ProjectsManagement from '@/components/features/projects/projects-management';
+import ProjectsManagement from '@/src/features/projects/projects-management';
 
 export default function ProjectsPage() {
   return (

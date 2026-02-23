@@ -1,4 +1,4 @@
-import AutomationManagement from '@/components/features/automation/automation-management';
+import AutomationManagement from '@/src/features/automation/automation-management';
 
 export default function AutomationPage() {
   return (
@@ -7,4 +7,3 @@ export default function AutomationPage() {
     </div>
   );
 }
-
