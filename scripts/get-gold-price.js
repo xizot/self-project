@@ -102,14 +102,19 @@ function compareGoldPrices(currentPrices, lastPrices) {
   // So sánh từng loại vàng
   for (let i = 0; i < currentPrices.length; i++) {
     const current = currentPrices[i];
-    const last = lastPrices.results.find(p => p.loaiVang === current.loaiVang);
+    const last = lastPrices.results.find(
+      (p) => p.loaiVang === current.loaiVang
+    );
 
     if (!last) {
       return true; // Có loại vàng mới
     }
 
     // So sánh giá mua vào và bán ra
-    if (current.giaMuaVao !== last.giaMuaVao || current.giaBanRa !== last.giaBanRa) {
+    if (
+      current.giaMuaVao !== last.giaMuaVao ||
+      current.giaBanRa !== last.giaBanRa
+    ) {
       return true; // Giá đã thay đổi
     }
   }
@@ -217,7 +222,10 @@ async function getGoldPrice() {
     }
 
     if (!browser) {
-      throw lastError || new Error('Không thể khởi động browser với bất kỳ cấu hình nào');
+      throw (
+        lastError ||
+        new Error('Không thể khởi động browser với bất kỳ cấu hình nào')
+      );
     }
 
     const page = await browser.newPage();
@@ -230,9 +238,12 @@ async function getGoldPrice() {
     });
 
     // Đợi bảng giá vàng load
-    await page.waitForSelector('table, .gold-price-table, [class*="price"], [class*="gold"]', {
-      timeout: 10000,
-    });
+    await page.waitForSelector(
+      'table, .gold-price-table, [class*="price"], [class*="gold"]',
+      {
+        timeout: 10000,
+      }
+    );
 
     console.log('Đang lấy dữ liệu giá vàng...');
 
@@ -256,7 +267,7 @@ async function getGoldPrice() {
       const findColumnIndex = (headers, keywords) => {
         for (let i = 0; i < headers.length; i++) {
           const header = headers[i].toLowerCase();
-          if (keywords.some(keyword => header.includes(keyword))) {
+          if (keywords.some((keyword) => header.includes(keyword))) {
             return i;
           }
         }
@@ -280,11 +291,15 @@ async function getGoldPrice() {
           }
 
           // Lấy dữ liệu các dòng
-          const dataRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
+          const dataRows = table.querySelectorAll(
+            'tbody tr, tr:not(:first-child)'
+          );
           dataRows.forEach((row) => {
             const cells = row.querySelectorAll('td, th');
             if (cells.length > 0) {
-              const rowData = Array.from(cells).map((cell) => cell.textContent.trim());
+              const rowData = Array.from(cells).map((cell) =>
+                cell.textContent.trim()
+              );
               rows.push(rowData);
             }
           });
@@ -292,41 +307,63 @@ async function getGoldPrice() {
           // Parse dữ liệu từ bảng
           if (headers.length > 0 && rows.length > 0) {
             // Tìm các cột quan trọng
-            const nameColIndex = findColumnIndex(headers, ['loại', 'tên', 'vàng', 'type', 'name']);
-            const buyColIndex = findColumnIndex(headers, ['mua', 'mua vào', 'buy', 'purchase', 'giá mua']);
-            const sellColIndex = findColumnIndex(headers, ['bán', 'bán ra', 'sell', 'giá bán']);
+            const nameColIndex = findColumnIndex(headers, [
+              'loại',
+              'tên',
+              'vàng',
+              'type',
+              'name',
+            ]);
+            const buyColIndex = findColumnIndex(headers, [
+              'mua',
+              'mua vào',
+              'buy',
+              'purchase',
+              'giá mua',
+            ]);
+            const sellColIndex = findColumnIndex(headers, [
+              'bán',
+              'bán ra',
+              'sell',
+              'giá bán',
+            ]);
 
             // Nếu không tìm thấy cột, sử dụng vị trí mặc định
             const actualNameIndex = nameColIndex >= 0 ? nameColIndex : 0;
-            const actualBuyIndex = buyColIndex >= 0 ? buyColIndex : (headers.length >= 2 ? 1 : -1);
-            const actualSellIndex = sellColIndex >= 0 ? sellColIndex : (headers.length >= 3 ? 2 : -1);
+            const actualBuyIndex =
+              buyColIndex >= 0 ? buyColIndex : headers.length >= 2 ? 1 : -1;
+            const actualSellIndex =
+              sellColIndex >= 0 ? sellColIndex : headers.length >= 3 ? 2 : -1;
 
             rows.forEach((row) => {
               if (row.length > 0) {
                 const goldType = row[actualNameIndex] || row[0] || 'N/A';
 
                 // Kiểm tra xem dòng này có phải là dòng giá vàng không
-                const isGoldRow = goldType && (
-                  goldType.toLowerCase().includes('vàng') ||
-                  goldType.toLowerCase().includes('sjc') ||
-                  goldType.toLowerCase().includes('24k') ||
-                  goldType.toLowerCase().includes('18k') ||
-                  goldType.toLowerCase().includes('pnj') ||
-                  goldType.match(/[\d,]+/)
-                );
+                const isGoldRow =
+                  goldType &&
+                  (goldType.toLowerCase().includes('vàng') ||
+                    goldType.toLowerCase().includes('sjc') ||
+                    goldType.toLowerCase().includes('24k') ||
+                    goldType.toLowerCase().includes('18k') ||
+                    goldType.toLowerCase().includes('pnj') ||
+                    goldType.match(/[\d,]+/));
 
                 if (isGoldRow) {
-                  const buyPrice = actualBuyIndex >= 0 && row[actualBuyIndex]
-                    ? parsePrice(row[actualBuyIndex])
-                    : null;
-                  const sellPrice = actualSellIndex >= 0 && row[actualSellIndex]
-                    ? parsePrice(row[actualSellIndex])
-                    : null;
+                  const buyPrice =
+                    actualBuyIndex >= 0 && row[actualBuyIndex]
+                      ? parsePrice(row[actualBuyIndex])
+                      : null;
+                  const sellPrice =
+                    actualSellIndex >= 0 && row[actualSellIndex]
+                      ? parsePrice(row[actualSellIndex])
+                      : null;
 
                   // Tính chênh lệch
-                  const difference = (buyPrice !== null && sellPrice !== null)
-                    ? (sellPrice - buyPrice)
-                    : null;
+                  const difference =
+                    buyPrice !== null && sellPrice !== null
+                      ? sellPrice - buyPrice
+                      : null;
 
                   results.push({
                     loaiVang: goldType,
@@ -361,8 +398,8 @@ async function getGoldPrice() {
             // Tìm giá trong các dòng tiếp theo
             const nextLines = lines.slice(index + 1, index + 5);
             const prices = nextLines
-              .map(l => parsePrice(l))
-              .filter(p => p !== null);
+              .map((l) => parsePrice(l))
+              .filter((p) => p !== null);
 
             if (prices.length >= 2) {
               const buyPrice = prices[0];
@@ -398,20 +435,24 @@ async function getGoldPrice() {
     // Nếu giá không thay đổi và đã gửi trong 30 phút, không gửi webhook
     const skipWebhook = !priceChanged && lastSentPrice !== null;
 
-    // Build markdown content for webhook
-    let markdownContent = `# Giá vàng PNJ\n\n`;
-    markdownContent += `**Nguồn:** https://www.pnj.com.vn/site/gia-vang\n`;
+    // Build markdown table content for webhook (Webex compatible)
+    let markdownContent = `## 💰 Giá vàng PNJ\n\n`;
+    markdownContent += `**Nguồn:** [PNJ](https://www.pnj.com.vn/site/gia-vang)\n`;
     markdownContent += `**Thời gian:** ${new Date().toLocaleString('vi-VN')}\n\n`;
-    markdownContent += `## Danh sách giá vàng:\n\n`;
+
+    markdownContent += `| Loại vàng | Bán ra | Mua vào | Chênh lệch |\n`;
+    markdownContent += `|-----------|--------|---------|------------|\n`;
 
     formattedData.forEach((item) => {
-      markdownContent += `### ${item.loaiVang}\n`;
-      markdownContent += `- **Giá mua vào:** ${item.giaMuaVao !== null ? item.giaMuaVao.toLocaleString('vi-VN') + ' VNĐ' : 'N/A'}\n`;
-      markdownContent += `- **Giá bán ra:** ${item.giaBanRa !== null ? item.giaBanRa.toLocaleString('vi-VN') + ' VNĐ' : 'N/A'}\n`;
-      if (item.chenhLech !== null) {
-        markdownContent += `- **Chênh lệch:** ${item.chenhLech.toLocaleString('vi-VN')} VNĐ\n`;
-      }
-      markdownContent += `\n`;
+      const buyPrice =
+        item.giaMuaVao !== null
+          ? item.giaMuaVao.toLocaleString('vi-VN')
+          : 'N/A';
+      const sellPrice =
+        item.giaBanRa !== null ? item.giaBanRa.toLocaleString('vi-VN') : 'N/A';
+      const diff =
+        item.chenhLech !== null ? item.chenhLech.toLocaleString('vi-VN') : '-';
+      markdownContent += `| ${item.loaiVang} | 🔺 ${sellPrice} | 🔻 ${buyPrice} | ⚖️ ${diff} |\n`;
     });
 
     const result = {
@@ -442,7 +483,9 @@ async function getGoldPrice() {
     // Output JSON result to stdout (for backward compatibility and fallback)
     // Logs go to stderr so they don't interfere with JSON output
     if (skipWebhook) {
-      console.error('Lấy giá vàng thành công! Giá không thay đổi, bỏ qua webhook.');
+      console.error(
+        'Lấy giá vàng thành công! Giá không thay đổi, bỏ qua webhook.'
+      );
     } else {
       console.error('Lấy giá vàng thành công!');
     }
@@ -455,22 +498,31 @@ async function getGoldPrice() {
     let errorDetails = {};
 
     // Kiểm tra các lỗi phổ biến
-    if (errorMessage.includes('ECONNRESET') || errorMessage.includes('ECONNREFUSED')) {
-      errorMessage = `Lỗi kết nối khi khởi động browser: ${errorMessage}. ` +
+    if (
+      errorMessage.includes('ECONNRESET') ||
+      errorMessage.includes('ECONNREFUSED')
+    ) {
+      errorMessage =
+        `Lỗi kết nối khi khởi động browser: ${errorMessage}. ` +
         `Có thể do Chromium executable bị corrupt hoặc vấn đề với Puppeteer cache. ` +
         `Thử xóa cache: rm -rf ~/.cache/puppeteer (Linux/Mac) hoặc xóa %USERPROFILE%\\.cache\\puppeteer (Windows)`;
       errorDetails = {
         type: 'connection_error',
-        suggestion: 'Xóa Puppeteer cache và thử lại, hoặc cài đặt lại Puppeteer',
+        suggestion:
+          'Xóa Puppeteer cache và thử lại, hoặc cài đặt lại Puppeteer',
       };
-    } else if (errorMessage.includes('Executable doesn\'t exist') ||
-        errorMessage.includes('Browser closed') ||
-        errorMessage.includes('Target closed')) {
-      errorMessage = `Không thể khởi động browser: ${errorMessage}. ` +
+    } else if (
+      errorMessage.includes("Executable doesn't exist") ||
+      errorMessage.includes('Browser closed') ||
+      errorMessage.includes('Target closed')
+    ) {
+      errorMessage =
+        `Không thể khởi động browser: ${errorMessage}. ` +
         `Hãy đảm bảo Chromium/Chrome đã được cài đặt hoặc Puppeteer có thể tải về Chromium.`;
       errorDetails = {
         type: 'browser_launch_error',
-        suggestion: 'Kiểm tra cài đặt Chromium/Chrome hoặc cài đặt dependencies hệ thống cần thiết',
+        suggestion:
+          'Kiểm tra cài đặt Chromium/Chrome hoặc cài đặt dependencies hệ thống cần thiết',
       };
     } else if (errorMessage.includes('timeout')) {
       errorMessage = `Timeout khi thực hiện: ${errorMessage}`;
@@ -534,4 +586,3 @@ if (require.main === module) {
 }
 
 module.exports = { getGoldPrice };
-

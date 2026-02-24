@@ -111,7 +111,12 @@ export interface App {
   updated_at: string;
 }
 
-export type PasswordType = 'password' | 'webhook' | 'api_key' | 'token' | 'other';
+export type PasswordType =
+  | 'password'
+  | 'webhook'
+  | 'api_key'
+  | 'token'
+  | 'other';
 
 export interface Password {
   id: number;
@@ -154,4 +159,37 @@ export interface AutomationTask {
   run_count: number;
   created_at: string;
   updated_at: string;
+}
+
+// Family Tree types
+export type Gender = 'male' | 'female';
+export type RelationshipType = 'parent_child' | 'spouse';
+
+export interface FamilyMember {
+  id: number;
+  user_id: number;
+  full_name: string;
+  gender: Gender;
+  birth_date: string | null;
+  death_date: string | null;
+  is_alive: number;
+  birth_order: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FamilyRelationship {
+  id: number;
+  user_id: number;
+  person_id: number;
+  related_person_id: number;
+  relationship_type: RelationshipType;
+  created_at: string;
+}
+
+export interface FamilyTreeNode extends FamilyMember {
+  children: FamilyTreeNode[];
+  spouse?: FamilyMember | null;
+  generation: number;
 }

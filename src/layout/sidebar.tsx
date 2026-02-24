@@ -22,10 +22,11 @@ import {
   StickyNote,
   Tag,
   Timer,
+  TreePine,
   Zap,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,11 @@ const navItems: NavItem[] = [
     title: 'Hydration',
     icon: Droplet,
     route: '/hydration',
+  },
+  {
+    title: 'Gia Phả',
+    icon: TreePine,
+    route: '/family-tree',
   },
 ];
 

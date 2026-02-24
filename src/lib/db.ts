@@ -418,6 +418,37 @@ try {
   }
 }
 
+// Family Tree tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS family_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    full_name TEXT NOT NULL,
+    gender TEXT NOT NULL DEFAULT 'male',
+    birth_date TEXT,
+    death_date TEXT,
+    is_alive INTEGER NOT NULL DEFAULT 1,
+    birth_order INTEGER,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS family_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    person_id INTEGER NOT NULL,
+    related_person_id INTEGER NOT NULL,
+    relationship_type TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (person_id) REFERENCES family_members(id) ON DELETE CASCADE,
+    FOREIGN KEY (related_person_id) REFERENCES family_members(id) ON DELETE CASCADE,
+    UNIQUE(user_id, person_id, related_person_id, relationship_type)
+  );
+`);
+
 // Note: Default data initialization will be done per user when they register
 // This ensures each user has their own default statuses, projects, and categories
 

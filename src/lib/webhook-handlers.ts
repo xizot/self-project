@@ -1,5 +1,5 @@
-import { AutomationTask, Password } from './types';
 import { decryptPassword } from './password-encryption';
+import { AutomationTask, Password } from './types';
 
 // Check if logs should be shown (default: true)
 const SHOW_LOGS = process.env.AUTOMATION_SHOW_LOGS !== 'false';
@@ -236,7 +236,7 @@ function formatWebexApiPayload(
       if (content.length > 3000) {
         content = content.substring(0, 2997) + '...';
       }
-      // Output removed - markdown doesn't work in webhooks
+      messageText += content;
     }
   } else if (result.output) {
     // Fallback to old format
@@ -251,9 +251,9 @@ function formatWebexApiPayload(
       if (outputText.length > 3000) {
         outputText = outputText.substring(0, 2997) + '...';
       }
-      // Output removed - markdown doesn't work in webhooks
+      messageText += outputText;
     } catch {
-      // Output removed - markdown doesn't work in webhooks
+      messageText += result.output;
     }
   }
 
@@ -268,7 +268,7 @@ function formatWebexApiPayload(
     }
   }
 
-  const payload: any = { text: messageText };
+  const payload: any = { markdown: messageText };
 
   // Extract token and roomId
   let webexToken = webhook.username || '';
